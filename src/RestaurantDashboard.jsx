@@ -5,7 +5,97 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
 import { Label } from './components/ui/label';
-import { Dialog, DialogContent, DialogTitle, DialogClose } from './components/ui/dialog';
+
+const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDelete, placeholder, title, isFilter = false }) => {
+  const [inputValue, setInputValue] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  const handleInputChange = (e) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleAddNew = async () => {
+    if (inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase())) {
+      const newItem = await onAdd(inputValue);
+      if (newItem) {
+        onSelect(newItem);
+        setInputValue('');
+        setIsAdding(false);
+      }
+    }
+  };
+
+  const handleEdit = async (id) => {
+    if (inputValue && inputValue !== options.find(opt => opt.id === id).name) {
+      await onEdit(id, inputValue);
+      setEditingId(null);
+      setInputValue('');
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <Label className="mb-2 block font-bold">{title}</Label>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {options.map((option) => (
+          <div key={option.id} className="flex items-center">
+            {editingId === option.id ? (
+              <div className="flex">
+                <Input
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  className="w-32"
+                />
+                <Button onClick={() => handleEdit(option.id)} className="ml-1">Save</Button>
+                <Button onClick={() => {setEditingId(null); setInputValue('');}} className="ml-1">Cancel</Button>
+              </div>
+            ) : (
+              <Button
+                variant={selectedOption && selectedOption.id === option.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => onSelect(option)}
+              >
+                {option.name} {getEmoji(option.name)}
+                {!isFilter && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(option.id);
+                      setInputValue(option.name);
+                    }}
+                    className="ml-1 p-1"
+                  >
+                    <Edit size={12} />
+                  </Button>
+                )}
+              </Button>
+            )}
+          </div>
+        ))}
+        {!isFilter && !isAdding && (
+          <Button onClick={() => setIsAdding(true)} size="sm" variant="outline">
+            <PlusCircle size={16} className="mr-2" /> Add New
+          </Button>
+        )}
+      </div>
+      {!isFilter && isAdding && (
+        <div className="flex mt-2">
+          <Input
+            placeholder={placeholder}
+            value={inputValue}
+            onChange={handleInputChange}
+            className="w-full"
+          />
+          <Button onClick={handleAddNew} className="ml-2 whitespace-nowrap">Add</Button>
+          <Button onClick={() => {setIsAdding(false); setInputValue('');}} className="ml-2 whitespace-nowrap">Cancel</Button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const RestaurantCard = ({ restaurant, onDelete, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -82,127 +172,6 @@ const RestaurantCard = ({ restaurant, onDelete, onUpdate }) => {
         </div>
       </CardContent>
     </Card>
-  );
-};
-
-const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDelete, placeholder, title, isFilter = false }) => {
-  const [inputValue, setInputValue] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const handleInputChange = (e) => {
-    setInputValue(e.target.value);
-  };
-
-  const handleAddNew = async () => {
-    if (inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase())) {
-      const newItem = await onAdd(inputValue);
-      if (newItem) {
-        onSelect(newItem);
-        setInputValue('');
-        setIsDialogOpen(false);
-      }
-    }
-  };
-
-  const handleEdit = async () => {
-    if (inputValue && inputValue !== options.find(opt => opt.id === editingId).name) {
-      await onEdit(editingId, inputValue);
-      setEditingId(null);
-      setInputValue('');
-      setIsDialogOpen(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (editingId) {
-      await onDelete(editingId);
-      setEditingId(null);
-      setInputValue('');
-      setIsDialogOpen(false);
-    }
-  };
-
-  const openAddDialog = () => {
-    setEditingId(null);
-    setInputValue('');
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (id, name) => {
-    setEditingId(id);
-    setInputValue(name);
-    setIsDialogOpen(true);
-  };
-
-  return (
-    <div className="mb-4">
-      <Label className="mb-2 block font-bold">{title}</Label>
-      <div className="flex flex-wrap gap-2 mb-2">
-        {options.map((option) => (
-          <div key={option.id} className="flex items-center">
-            <Button
-              variant={selectedOption && selectedOption.id === option.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => onSelect(option)}
-            >
-              {option.name} {getEmoji(option.name)}
-              {!isFilter && (
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEditDialog(option.id, option.name);
-                  }}
-                  className="ml-1 p-1"
-                >
-                  <Edit size={12} />
-                </Button>
-              )}
-            </Button>
-          </div>
-        ))}
-        {!isFilter && (
-          <Button onClick={openAddDialog} size="sm" variant="outline">
-            <PlusCircle size={16} className="mr-2" /> Add New
-          </Button>
-        )}
-      </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogTitle>{editingId ? 'Edit' : 'Add New'} {title}</DialogTitle>
-          <Input
-            placeholder={placeholder}
-            value={inputValue}
-            onChange={handleInputChange}
-            className="w-full mb-4"
-          />
-          <div className="flex justify-end space-x-2">
-            {editingId ? (
-              <>
-                <Button onClick={handleEdit} size="sm">
-                  <Save size={16} className="mr-2" /> Save
-                </Button>
-                <Button onClick={handleDelete} size="sm" variant="destructive">
-                  <Trash2 size={16} className="mr-2" /> Delete
-                </Button>
-              </>
-            ) : (
-              <Button onClick={handleAddNew} size="sm">
-                <PlusCircle size={16} className="mr-2" /> Add
-              </Button>
-            )}
-            <DialogClose>
-              <Button size="sm" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                <X size={16} className="mr-2" /> Cancel
-              </Button>
-            </DialogClose>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
   );
 };
 
@@ -361,18 +330,6 @@ const RestaurantDashboard = () => {
     }
   };
 
-  const resetFilters = useCallback(() => {
-    setFilters({ type: null, city: null, rating: 0 });
-  }, []);
-
-  const filteredRestaurants = useMemo(() => {
-    return restaurants.filter(restaurant => 
-      (!filters.type || restaurant.type_id === filters.type.id) &&
-      (!filters.city || restaurant.city_id === filters.city.id) &&
-      (!filters.rating || restaurant.rating >= filters.rating)
-    );
-  }, [restaurants, filters]);
-
   const deleteType = async (id) => {
     try {
       const { error } = await supabase
@@ -401,69 +358,119 @@ const RestaurantDashboard = () => {
     }
   };
 
+  const resetFilters = useCallback(() => {
+    setFilters({ type: null, city: null, rating: 0 });
+  }, []);
+
+  const filteredRestaurants = useMemo(() => {
+    return restaurants.filter(restaurant => 
+      (!filters.type || restaurant.type_id === filters.type.id) &&
+      (!filters.city || restaurant.city_id === filters.city.id) &&
+      (!filters.rating || restaurant.rating >= filters.rating)
+    );
+  }, [restaurants, filters]);
+
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">My Restaurants</h1>
-        <div className="space-x-2">
-          <Button onClick={() => setShowFilters(!showFilters)}>
-            {showFilters ? <ChevronUp className="mr-2" /> : <ChevronDown className="mr-2" />}
-            Filters
-          </Button>
-          <Button onClick={() => setShowAddForm(!showAddForm)}>
-            <PlusCircle className="mr-2" /> Add Restaurant
-          </Button>
-        </div>
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold mb-4 sm:mb-0">My Restaurants</h1>
+        {restaurants.length > 0 && (
+          <div className="space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto flex flex-col sm:flex-row">
+            <Button 
+              onClick={() => setShowFilters(!showFilters)} 
+              className="w-full sm:w-auto"
+            >
+              {showFilters ? <ChevronUp className="mr-2" /> : <ChevronDown className="mr-2" />}
+              Filters
+            </Button>
+            <Button 
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="w-full sm:w-auto"
+            >
+              <PlusCircle className="mr-2" /> Add Restaurant
+            </Button>
+          </div>
+        )}
       </div>
 
-      {showFilters && (
+      {restaurants.length === 0 ? (
         <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <DynamicInput
-                options={types}
-                selectedOption={filters.type}
-                onSelect={(value) => setFilters({...filters, type: value})}
-                onAdd={addType}
-                onEdit={editType}
-                placeholder="Filter by type"
-                title="Restaurant Type"
-                isFilter={true}
-              />
-              <DynamicInput
-                options={cities}
-                selectedOption={filters.city}
-                onSelect={(value) => setFilters({...filters, city: value})}
-                onAdd={addCity}
-                onEdit={editCity}
-                placeholder="Filter by city"
-                title="City"
-                isFilter={true}
-              />
-              <div>
-                <Label className="mb-2 block font-bold">Minimum Rating</Label>
-                <div className="flex gap-2">
-                  {[0, 1, 2, 3, 4, 5].map((value) => (
-                    <Button
-                      key={value}
-                      variant={filters.rating === value ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFilters({...filters, rating: value})}
-                    >
-                      {value === 0 ? 'Any' : `${value}+`} <Star size={16} className="ml-1" fill={filters.rating >= value ? "currentColor" : "none"} />
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <Button className="w-full mt-4" onClick={resetFilters}>
-              Reset Filters
+          <CardContent className="text-center py-12">
+            <p className="text-gray-500 mb-4">No restaurants added yet.</p>
+            <Button onClick={() => setShowAddForm(true)}>
+              <PlusCircle className="mr-2" /> Add Your First Restaurant
             </Button>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          {showFilters && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Filters</CardTitle>
+                </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <DynamicInput
+                    options={types}
+                    selectedOption={filters.type}
+                    onSelect={(value) => setFilters({...filters, type: value})}
+                    onAdd={addType}
+                    onEdit={editType}
+                    onDelete={deleteType}
+                    placeholder="Filter by type"
+                    title="Restaurant Type"
+                    isFilter={true}
+                  />
+                  <DynamicInput
+                    options={cities}
+                    selectedOption={filters.city}
+                    onSelect={(value) => setFilters({...filters, city: value})}
+                    onAdd={addCity}
+                    onEdit={editCity}
+                    onDelete={deleteCity}
+                    placeholder="Filter by city"
+                    title="City"
+                    isFilter={true}
+                  />
+                  <div>
+                    <Label className="mb-2 block font-bold">Minimum Rating</Label>
+                    <div className="flex gap-2">
+                      {[0, 1, 2, 3, 4, 5].map((value) => (
+                        <Button
+                          key={value}
+                          variant={filters.rating === value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setFilters({...filters, rating: value})}
+                        >
+                          {value === 0 ? 'Any' : `${value}+`} <Star size={16} className="ml-1" fill={filters.rating >= value ? "currentColor" : "none"} />
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <Button className="w-full mt-4" onClick={resetFilters}>
+                  Reset Filters
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="space-y-4">
+            {filteredRestaurants.map((restaurant) => (
+              <RestaurantCard 
+                key={restaurant.id} 
+                restaurant={{
+                  ...restaurant,
+                  type: restaurant.restaurant_types.name,
+                  city: restaurant.cities.name
+                }}
+                onDelete={deleteRestaurant}
+                onUpdate={updateRestaurant}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {showAddForm && (
@@ -472,7 +479,7 @@ const RestaurantDashboard = () => {
             <CardTitle>Add New Restaurant</CardTitle>
           </CardHeader>
           <CardContent>
-          <div className="space-y-4">
+            <div className="space-y-4">
               <div>
                 <Label className="mb-2 block font-bold">Restaurant Name</Label>
                 <Input
@@ -482,25 +489,25 @@ const RestaurantDashboard = () => {
                 />
               </div>
               <DynamicInput
-          options={types}
-          selectedOption={type}
-          onSelect={setType}
-          onAdd={addType}
-          onEdit={editType}
-          onDelete={deleteType}
-          placeholder="Enter new type"
-          title="Restaurant Type"
-        />
-        <DynamicInput
-          options={cities}
-          selectedOption={city}
-          onSelect={setCity}
-          onAdd={addCity}
-          onEdit={editCity}
-          onDelete={deleteCity}
-          placeholder="Enter new city"
-          title="City"
-        />
+                options={types}
+                selectedOption={type}
+                onSelect={setType}
+                onAdd={addType}
+                onEdit={editType}
+                onDelete={deleteType}
+                placeholder="Enter new type"
+                title="Restaurant Type"
+              />
+              <DynamicInput
+                options={cities}
+                selectedOption={city}
+                onSelect={setCity}
+                onAdd={addCity}
+                onEdit={editCity}
+                onDelete={deleteCity}
+                placeholder="Enter new city"
+                title="City"
+              />
               <div>
                 <Label className="mb-2 block font-bold">Rating</Label>
                 <div className="flex gap-2">
@@ -523,21 +530,6 @@ const RestaurantDashboard = () => {
           </CardContent>
         </Card>
       )}
-
-      <div className="space-y-4">
-        {filteredRestaurants.map((restaurant) => (
-          <RestaurantCard 
-            key={restaurant.id} 
-            restaurant={{
-              ...restaurant,
-              type: restaurant.restaurant_types.name,
-              city: restaurant.cities.name
-            }}
-            onDelete={deleteRestaurant}
-            onUpdate={updateRestaurant}
-          />
-        ))}
-      </div>
     </div>
   );
 };
