@@ -36,50 +36,53 @@ const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDele
 
   return (
     <div className="mb-4">
-      <Label className="mb-2 block font-bold">{title}</Label>
-      <div className="flex flex-wrap gap-2 mb-2">
-        {options.map((option) => (
-          <div key={option.id} className="flex items-center">
-            {editingId === option.id ? (
-              <div className="flex">
-                <Input
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  className="w-32"
-                />
-                <Button onClick={() => handleEdit(option.id)} className="ml-1">Save</Button>
-                <Button onClick={() => {setEditingId(null); setInputValue('');}} className="ml-1">Cancel</Button>
-              </div>
-            ) : (
-              <Button
-                variant={selectedOption && selectedOption.id === option.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => onSelect(option)}
-              >
-                {option.name} {getEmoji(option.name)}
-                {!isFilter && (
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingId(option.id);
-                      setInputValue(option.name);
-                    }}
-                    className="ml-1 p-1"
-                  >
-                    <Edit size={12} />
-                  </Button>
-                )}
-              </Button>
-            )}
-          </div>
-        ))}
-        {!isFilter && !isAdding && (
-          <Button onClick={() => setIsAdding(true)} size="sm" variant="outline">
-            <PlusCircle size={16} className="mr-2" /> Add New
-          </Button>
-        )}
+      <Label className="mb-2 block font-bold text-sm">{title}</Label>
+      <div className="flex overflow-x-auto pb-2 mb-2 -mx-4 px-4">
+        <div className="flex space-x-2">
+          {options.map((option) => (
+            <div key={option.id} className="flex-shrink-0">
+              {editingId === option.id ? (
+                <div className="flex">
+                  <Input
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    className="w-24 text-sm"
+                  />
+                  <Button onClick={() => handleEdit(option.id)} size="sm" className="ml-1">Save</Button>
+                  <Button onClick={() => {setEditingId(null); setInputValue('');}} size="sm" className="ml-1">Cancel</Button>
+                </div>
+              ) : (
+                <Button
+                  variant={selectedOption && selectedOption.id === option.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onSelect(option)}
+                  className="text-sm"
+                >
+                  {option.name} {getEmoji(option.name)}
+                  {!isFilter && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(option.id);
+                        setInputValue(option.name);
+                      }}
+                      className="ml-1 p-1"
+                    >
+                      <Edit size={12} />
+                    </Button>
+                  )}
+                </Button>
+              )}
+            </div>
+          ))}
+          {!isFilter && !isAdding && (
+            <Button onClick={() => setIsAdding(true)} size="sm" variant="outline" className="flex-shrink-0 text-sm">
+              <PlusCircle size={16} className="mr-2" /> Add New
+            </Button>
+          )}
+        </div>
       </div>
       {!isFilter && isAdding && (
         <div className="flex mt-2">
@@ -87,10 +90,10 @@ const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDele
             placeholder={placeholder}
             value={inputValue}
             onChange={handleInputChange}
-            className="w-full"
+            className="w-full text-sm"
           />
-          <Button onClick={handleAddNew} className="ml-2 whitespace-nowrap">Add</Button>
-          <Button onClick={() => {setIsAdding(false); setInputValue('');}} className="ml-2 whitespace-nowrap">Cancel</Button>
+          <Button onClick={handleAddNew} size="sm" className="ml-2 whitespace-nowrap text-sm">Add</Button>
+          <Button onClick={() => {setIsAdding(false); setInputValue('');}} size="sm" className="ml-2 whitespace-nowrap text-sm">Cancel</Button>
         </div>
       )}
     </div>
@@ -108,17 +111,17 @@ const RestaurantCard = ({ restaurant, onDelete, onUpdate }) => {
 
   return (
     <Card className="mb-4 border-l-4" style={{ borderLeftColor: getColorForType(restaurant.type) }}>
-      <CardContent className="pt-6">
-        <div className="flex justify-between items-start mb-4">
+      <CardContent className="pt-4">
+        <div className="flex justify-between items-start mb-2">
           <div>
-            <h3 className="font-bold text-lg">{restaurant.name} {getEmoji(restaurant.type)}</h3>
-            <p className="text-sm text-gray-500">{restaurant.type} • {restaurant.city}</p>
+            <h3 className="font-bold text-base">{restaurant.name} {getEmoji(restaurant.type)}</h3>
+            <p className="text-xs text-gray-500">{restaurant.type} • {restaurant.city}</p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
             {[...Array(5)].map((_, i) => (
               <Star
                 key={i}
-                size={16}
+                size={14}
                 className={i < restaurant.rating ? "text-yellow-400" : "text-gray-300"}
                 fill={i < restaurant.rating ? "currentColor" : "none"}
               />
@@ -126,29 +129,33 @@ const RestaurantCard = ({ restaurant, onDelete, onUpdate }) => {
           </div>
         </div>
         {isEditing && (
-          <div className="space-y-2 mt-4">
+          <div className="space-y-2 mt-2">
             <Input
               placeholder="Restaurant name"
               value={editedRestaurant.name}
               onChange={(e) => setEditedRestaurant({ ...editedRestaurant, name: e.target.value })}
+              className="text-sm"
             />
             <Input
               placeholder="Restaurant type"
               value={editedRestaurant.type}
               onChange={(e) => setEditedRestaurant({ ...editedRestaurant, type: e.target.value })}
+              className="text-sm"
             />
             <Input
               placeholder="City"
               value={editedRestaurant.city}
               onChange={(e) => setEditedRestaurant({ ...editedRestaurant, city: e.target.value })}
+              className="text-sm"
             />
-            <div className="flex space-x-2">
+            <div className="flex space-x-1">
               {[1, 2, 3, 4, 5].map((value) => (
                 <Button
                   key={value}
                   variant={editedRestaurant.rating === value ? "default" : "outline"}
                   size="sm"
                   onClick={() => setEditedRestaurant({ ...editedRestaurant, rating: value })}
+                  className="text-xs px-2 py-1"
                 >
                   {value}
                 </Button>
@@ -156,18 +163,18 @@ const RestaurantCard = ({ restaurant, onDelete, onUpdate }) => {
             </div>
           </div>
         )}
-        <div className="flex justify-end space-x-2 mt-4">
+        <div className="flex justify-end space-x-2 mt-2">
           {isEditing ? (
-            <Button onClick={handleSave} size="sm">
-              <Save size={16} className="mr-2" /> Save Changes
+            <Button onClick={handleSave} size="sm" className="text-xs">
+              <Save size={14} className="mr-1" /> Save
             </Button>
           ) : (
-            <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
-              <Edit size={16} className="mr-2" /> Edit
+            <Button onClick={() => setIsEditing(true)} variant="outline" size="sm" className="text-xs">
+              <Edit size={14} className="mr-1" /> Edit
             </Button>
           )}
-          <Button onClick={() => onDelete(restaurant.id)} variant="destructive" size="sm">
-            <Trash2 size={16} className="mr-2" /> Delete
+          <Button onClick={() => onDelete(restaurant.id)} variant="destructive" size="sm" className="text-xs">
+            <Trash2 size={14} className="mr-1" /> Delete
           </Button>
         </div>
       </CardContent>
@@ -372,43 +379,43 @@ const RestaurantDashboard = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold mb-4 sm:mb-0">My Restaurants</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+        <h1 className="text-xl font-bold mb-2 sm:mb-0">My Restaurants</h1>
         {restaurants.length > 0 && (
-          <div className="space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto flex flex-col sm:flex-row">
+          <div className="flex space-x-2 w-full sm:w-auto">
             <Button 
               onClick={() => setShowFilters(!showFilters)} 
-              className="w-full sm:w-auto"
+              className="flex-1 sm:flex-initial text-sm"
             >
-              {showFilters ? <ChevronUp className="mr-2" /> : <ChevronDown className="mr-2" />}
+              {showFilters ? <ChevronUp className="mr-1" size={14} /> : <ChevronDown className="mr-1" size={14} />}
               Filters
             </Button>
             <Button 
               onClick={() => setShowAddForm(!showAddForm)}
-              className="w-full sm:w-auto"
+              className="flex-1 sm:flex-initial text-sm"
             >
-              <PlusCircle className="mr-2" /> Add Restaurant
+              <PlusCircle className="mr-1" size={14} /> Add Restaurant
             </Button>
           </div>
         )}
       </div>
 
       {restaurants.length === 0 ? (
-        <Card className="mb-8">
-          <CardContent className="text-center py-12">
-            <p className="text-gray-500 mb-4">No restaurants added yet.</p>
-            <Button onClick={() => setShowAddForm(true)}>
-              <PlusCircle className="mr-2" /> Add Your First Restaurant
+        <Card className="mb-4">
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500 mb-4 text-sm">No restaurants added yet.</p>
+            <Button onClick={() => setShowAddForm(true)} className="text-sm">
+              <PlusCircle className="mr-2" size={14} /> Add Your First Restaurant
             </Button>
           </CardContent>
         </Card>
       ) : (
         <>
           {showFilters && (
-            <Card className="mb-8">
+            <Card className="mb-4">
               <CardHeader>
-                <CardTitle>Filters</CardTitle>
-                </CardHeader>
+                <CardTitle className="text-lg">Filters</CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <DynamicInput
@@ -434,22 +441,23 @@ const RestaurantDashboard = () => {
                     isFilter={true}
                   />
                   <div>
-                    <Label className="mb-2 block font-bold">Minimum Rating</Label>
-                    <div className="flex gap-2">
+                    <Label className="mb-2 block font-bold text-sm">Minimum Rating</Label>
+                    <div className="flex gap-1">
                       {[0, 1, 2, 3, 4, 5].map((value) => (
                         <Button
                           key={value}
                           variant={filters.rating === value ? "default" : "outline"}
                           size="sm"
                           onClick={() => setFilters({...filters, rating: value})}
+                          className="text-xs px-2 py-1"
                         >
-                          {value === 0 ? 'Any' : `${value}+`} <Star size={16} className="ml-1" fill={filters.rating >= value ? "currentColor" : "none"} />
+                          {value === 0 ? 'Any' : `${value}+`} <Star size={12} className="ml-1" fill={filters.rating >= value ? "currentColor" : "none"} />
                         </Button>
                       ))}
                     </div>
                   </div>
                 </div>
-                <Button className="w-full mt-4" onClick={resetFilters}>
+                <Button className="w-full mt-4 text-sm" onClick={resetFilters}>
                   Reset Filters
                 </Button>
               </CardContent>
@@ -474,18 +482,19 @@ const RestaurantDashboard = () => {
       )}
 
       {showAddForm && (
-        <Card className="mb-8">
+        <Card className="mb-4">
           <CardHeader>
-            <CardTitle>Add New Restaurant</CardTitle>
+            <CardTitle className="text-lg">Add New Restaurant</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <Label className="mb-2 block font-bold">Restaurant Name</Label>
+                <Label className="mb-2 block font-bold text-sm">Restaurant Name</Label>
                 <Input
                   placeholder="Enter restaurant name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="text-sm"
                 />
               </div>
               <DynamicInput
@@ -509,23 +518,24 @@ const RestaurantDashboard = () => {
                 title="City"
               />
               <div>
-                <Label className="mb-2 block font-bold">Rating</Label>
-                <div className="flex gap-2">
+                <Label className="mb-2 block font-bold text-sm">Rating</Label>
+                <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((value) => (
                     <Button
                       key={value}
                       variant={rating === value ? "default" : "outline"}
                       size="sm"
                       onClick={() => setRating(value)}
+                      className="text-xs px-2 py-1"
                     >
-                      {value} <Star size={16} className="ml-1" fill={rating >= value ? "currentColor" : "none"} />
+                      {value} <Star size={12} className="ml-1" fill={rating >= value ? "currentColor" : "none"} />
                     </Button>
                   ))}
                 </div>
               </div>
             </div>
-            <Button className="w-full mt-4" onClick={addRestaurant}>
-              <PlusCircle className="mr-2" /> Add Restaurant
+            <Button className="w-full mt-4 text-sm" onClick={addRestaurant}>
+              <PlusCircle className="mr-2" size={14} /> Add Restaurant
             </Button>
           </CardContent>
         </Card>
