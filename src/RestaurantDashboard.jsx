@@ -3,8 +3,10 @@ import { supabase } from './supabaseClient';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from './components/ui/card';
-import { PlusCircle, Edit, Trash2, Star, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Card, CardContent } from './components/ui/card';
+import { PlusCircle, Edit, Trash2, Star, X, Filter } from 'lucide-react';
+import RestaurantFilter from './RestaurantFilter';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const SimpleDialog = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
@@ -24,7 +26,7 @@ const SimpleDialog = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDelete, placeholder, title, isFilter = false }) => {
+const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDelete, placeholder, title }) => {
   const [inputValue, setInputValue] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -84,27 +86,23 @@ const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDele
                 className="text-sm"
               >
                 {option.name}
-                {!isFilter && (
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditDialog(option);
-                    }}
-                    className="ml-1 p-1"
-                  >
-                    <Edit size={12} />
-                  </Button>
-                )}
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditDialog(option);
+                  }}
+                  className="ml-1 p-1"
+                >
+                  <Edit size={12} />
+                </Button>
               </Button>
             </div>
           ))}
-          {!isFilter && (
-            <Button onClick={() => {setIsDialogOpen(true); setIsEditing(false);}} size="sm" variant="outline" className="flex-shrink-0 text-sm">
-              <PlusCircle size={16} className="mr-2" /> Add New
-            </Button>
-          )}
+          <Button onClick={() => {setIsDialogOpen(true); setIsEditing(false);}} size="sm" variant="outline" className="flex-shrink-0 text-sm">
+            <PlusCircle size={16} className="mr-2" /> Add New
+          </Button>
         </div>
       </div>
       <SimpleDialog
@@ -158,6 +156,14 @@ const RestaurantDashboard = () => {
   const [types, setTypes] = useState([]);
   const [cities, setCities] = useState([]);
   const [editingRestaurant, setEditingRestaurant] = useState(null);
+  const [filters, setFilters] = useState({
+    name: '',
+    type_id: null,
+    city_id: null,
+    rating: 0
+  });
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [sortOption, setSortOption] = useState('dateAdded');
 
   useEffect(() => {
     fetchRestaurants();
@@ -173,7 +179,8 @@ const RestaurantDashboard = () => {
           *,
           restaurant_types(id, name),
           cities(id, name)
-        `);
+        `)
+        .order('created_at', { ascending: false });  // Order by creation date, newest first
       if (error) throw error;
       console.log('Fetched restaurants:', data);
       setRestaurants(data);
@@ -386,56 +393,103 @@ const RestaurantDashboard = () => {
     };
   
     return (
-      <Card className="mb-4 overflow-hidden hover:shadow-md transition-shadow duration-300">
-        <CardContent className="p-4">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-semibold">{restaurant.name}</h3>
-            <div className="flex items-center">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={i < restaurant.rating ? 'text-yellow-400' : 'text-gray-200'}
-                  size={16}
-                  fill={i < restaurant.rating ? 'currentColor' : 'none'}
-                />
-              ))}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 50 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Card className="mb-4 overflow-hidden hover:shadow-md transition-shadow duration-300">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+              <div className="flex items-center">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={i < restaurant.rating ? 'text-yellow-400' : 'text-gray-200'}
+                    size={16}
+                    fill={i < restaurant.rating ? 'currentColor' : 'none'}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center text-sm text-gray-600 mb-4">
+            <div className="flex items-center text-sm text-gray-600 mb-4">
             <span className="mr-2">{getEmoji(restaurant.restaurant_types.name)}</span>
-            <span className="mr-4">{restaurant.restaurant_types.name}</span>
-            <span className="mr-2">{getCityEmoji(restaurant.cities.name)}</span>
-            <span>{restaurant.cities.name}</span>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleEditRestaurant(restaurant)}
-              className="text-blue-500 hover:text-blue-700"
-            >
-              <Edit size={14} className="mr-1" /> Edit
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => deleteRestaurant(restaurant.id)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 size={14} className="mr-1" /> Delete
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <span className="mr-4">{restaurant.restaurant_types.name}</span>
+              <span className="mr-2">{getCityEmoji(restaurant.cities.name)}</span>
+              <span>{restaurant.cities.name}</span>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => handleEditRestaurant(restaurant)}
+                className="text-blue-500 hover:text-blue-700"
+              >
+                <Edit size={14} className="mr-1" /> Edit
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => deleteRestaurant(restaurant.id)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 size={14} className="mr-1" /> Delete
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   };
+
+  const filteredRestaurants = restaurants.filter(restaurant => {
+    return (
+      restaurant.name.toLowerCase().includes(filters.name.toLowerCase()) &&
+      (!filters.type_id || restaurant.restaurant_types.id === filters.type_id) &&
+      (!filters.city_id || restaurant.cities.id === filters.city_id) &&
+      restaurant.rating >= filters.rating
+    );
+  }).sort((a, b) => {
+    if (sortOption === 'name') {
+      return a.name.localeCompare(b.name);
+    } else if (sortOption === 'rating') {
+      return b.rating - a.rating;
+    } else if (sortOption === 'dateAdded') {
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    return 0;
+  });
 
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Restaurant Dashboard</h1>
-      <Button className="mb-4" onClick={() => setIsAddDialogOpen(true)}>
-        <PlusCircle size={16} className="mr-2" /> Add Restaurant
-      </Button>
+      <div className="flex space-x-2 mb-4">
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <PlusCircle size={16} className="mr-2" /> Add Restaurant
+        </Button>
+        <Button onClick={() => setIsFilterDialogOpen(true)} variant="outline">
+          <Filter size={16} className="mr-2" /> Filter & Sort
+        </Button>
+      </div>
+      
+      <SimpleDialog
+        isOpen={isFilterDialogOpen}
+        onClose={() => setIsFilterDialogOpen(false)}
+        title="Filter & Sort Restaurants"
+      >
+        <RestaurantFilter
+          types={types}
+          cities={cities}
+          filters={filters}
+          setFilters={setFilters}
+          sortOption={sortOption}
+          setSortOption={setSortOption}
+          onClose={() => setIsFilterDialogOpen(false)}
+        />
+      </SimpleDialog>
+
       <SimpleDialog
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
@@ -487,71 +541,71 @@ const RestaurantDashboard = () => {
         </div>
       </SimpleDialog>
       <SimpleDialog
-  isOpen={isEditDialogOpen}
-  onClose={() => setIsEditDialogOpen(false)}
-  title="Edit Restaurant"
->
-  {editingRestaurant && (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="edit-name">Name</Label>
-        <Input
-          id="edit-name"
-          value={editingRestaurant.name}
-          onChange={(e) => setEditingRestaurant({ ...editingRestaurant, name: e.target.value })}
-        />
-      </div>
-      <DynamicInput
-        options={types}
-        selectedOption={types.find(t => t.id === editingRestaurant.type_id)}
-        onSelect={(type) => setEditingRestaurant({ ...editingRestaurant, type_id: type.id })}
-        onAdd={addType}
-        onEdit={editType}
-        onDelete={deleteType}
-        placeholder="Enter restaurant type"
-        title="Type"
-      />
-      <DynamicInput
-        options={cities}
-        selectedOption={cities.find(c => c.id === editingRestaurant.city_id)}
-        onSelect={(city) => setEditingRestaurant({ ...editingRestaurant, city_id: city.id })}
-        onAdd={addCity}
-        onEdit={editCity}
-        onDelete={deleteCity}
-        placeholder="Enter city"
-        title="City"
-      />
-      <div className="space-y-2">
-        <Label>Rating</Label>
-        <div className="flex space-x-2">
-          {[1, 2, 3, 4, 5].map((value) => (
-            <Button
-              key={value}
-              variant={editingRestaurant.rating === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setEditingRestaurant({ ...editingRestaurant, rating: value })}
-            >
-              {value} <Star className="ml-1" size={14} />
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="flex justify-end mt-4">
-        <Button onClick={() => updateRestaurant(editingRestaurant)}>Save Changes</Button>
-      </div>
-    </div>
-  )}
-</SimpleDialog>
-<div className="space-y-4">
-  {restaurants.map((restaurant) => (
-    <RestaurantCard 
-      key={restaurant.id} 
-      restaurant={restaurant} 
-      handleEditRestaurant={handleEditRestaurant}
-      deleteRestaurant={deleteRestaurant}
-    />
-  ))}
-</div>
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        title="Edit Restaurant"
+      >
+        {editingRestaurant && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editingRestaurant.name}
+                onChange={(e) => setEditingRestaurant({ ...editingRestaurant, name: e.target.value })}
+              />
+            </div>
+            <DynamicInput
+              options={types}
+              selectedOption={types.find(t => t.id === editingRestaurant.type_id)}
+              onSelect={(type) => setEditingRestaurant({ ...editingRestaurant, type_id: type.id })}
+              onAdd={addType}
+              onEdit={editType}
+              onDelete={deleteType}
+              placeholder="Enter restaurant type"
+              title="Type"
+            />
+            <DynamicInput
+              options={cities}
+              selectedOption={cities.find(c => c.id === editingRestaurant.city_id)}
+              onSelect={(city) => setEditingRestaurant({ ...editingRestaurant, city_id: city.id })}
+              onAdd={addCity}
+              onEdit={editCity}
+              onDelete={deleteCity}
+              placeholder="Enter city"
+              title="City"
+            />
+            <div className="space-y-2">
+              <Label>Rating</Label>
+              <div className="flex space-x-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Button
+                    key={value}
+                    variant={editingRestaurant.rating === value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setEditingRestaurant({ ...editingRestaurant, rating: value })}
+                  >
+                    {value} <Star className="ml-1" size={14} />
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button onClick={() => updateRestaurant(editingRestaurant)}>Save Changes</Button>
+            </div>
+          </div>
+        )}
+      </SimpleDialog>
+      <AnimatePresence>
+        {filteredRestaurants.map((restaurant) => (
+          <RestaurantCard 
+            key={restaurant.id} 
+            restaurant={restaurant} 
+            handleEditRestaurant={handleEditRestaurant}
+            deleteRestaurant={deleteRestaurant}
+          />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
