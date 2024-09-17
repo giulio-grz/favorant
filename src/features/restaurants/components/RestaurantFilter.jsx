@@ -1,9 +1,9 @@
 import React from 'react';
-import { Button } from './components/ui/button';
-import { Label } from './components/ui/label';
-import { Input } from './components/ui/input';
+import { Button } from '../../../components/ui/button';
+import { Label } from '../../../components/ui/label';
+import { Input } from '../../../components/ui/input';
 import { Star } from 'lucide-react';
-import { Switch } from "./components/ui/switch";
+import { Switch } from "../../../components/ui/switch";
 
 const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setSortOption, onClose }) => {
   const clearFilters = () => {
