@@ -4,9 +4,10 @@ import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
 import { Card, CardContent } from './components/ui/card';
-import { PlusCircle, Edit, Trash2, Star, X, Filter } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, X, Filter, Star } from 'lucide-react';
 import RestaurantFilter from './RestaurantFilter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Switch } from "./components/ui/switch";
 
 const SimpleDialog = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
@@ -153,6 +154,7 @@ const RestaurantDashboard = () => {
   const [type, setType] = useState(null);
   const [city, setCity] = useState(null);
   const [rating, setRating] = useState(0);
+  const [toTry, setToTry] = useState(false);
   const [types, setTypes] = useState([]);
   const [cities, setCities] = useState([]);
   const [editingRestaurant, setEditingRestaurant] = useState(null);
@@ -160,6 +162,7 @@ const RestaurantDashboard = () => {
     name: '',
     type_id: null,
     city_id: null,
+    toTry: null,
     rating: 0
   });
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
@@ -180,7 +183,7 @@ const RestaurantDashboard = () => {
           restaurant_types(id, name),
           cities(id, name)
         `)
-        .order('created_at', { ascending: false });  // Order by creation date, newest first
+        .order('created_at', { ascending: false });
       if (error) throw error;
       console.log('Fetched restaurants:', data);
       setRestaurants(data);
@@ -213,13 +216,19 @@ const RestaurantDashboard = () => {
   };
 
   const addRestaurant = async () => {
-    if (name && type && city && rating) {
+    if (name && type && city) {
       try {
-        console.log('Adding restaurant with:', { name, type, city, rating });
+        console.log('Adding restaurant with:', { name, type, city, rating, toTry });
 
         const { data, error } = await supabase
           .from('restaurants')
-          .insert([{ name, type_id: type.id, city_id: city.id, rating }])
+          .insert([{ 
+            name, 
+            type_id: type.id, 
+            city_id: city.id, 
+            rating: toTry ? null : rating, 
+            to_try: toTry 
+          }])
           .select();
         
         if (error) throw error;
@@ -231,6 +240,7 @@ const RestaurantDashboard = () => {
         setType(null);
         setCity(null);
         setRating(0);
+        setToTry(false);
         setIsAddDialogOpen(false);
       } catch (error) {
         console.error('Error in addRestaurant:', error);
@@ -263,7 +273,8 @@ const RestaurantDashboard = () => {
           name: updatedRestaurant.name,
           type_id: updatedRestaurant.type_id,
           city_id: updatedRestaurant.city_id,
-          rating: updatedRestaurant.rating
+          rating: updatedRestaurant.to_try ? null : updatedRestaurant.rating,
+          to_try: updatedRestaurant.to_try
         })
         .eq('id', updatedRestaurant.id);
       if (error) throw error;
@@ -368,7 +379,8 @@ const RestaurantDashboard = () => {
       name: restaurant.name,
       type_id: restaurant.restaurant_types.id,
       city_id: restaurant.cities.id,
-      rating: restaurant.rating
+      rating: restaurant.rating,
+      to_try: restaurant.to_try
     });
     setIsEditDialogOpen(true);
   };
@@ -402,20 +414,26 @@ const RestaurantDashboard = () => {
         <Card className="mb-4 overflow-hidden hover:shadow-md transition-shadow duration-300">
           <CardContent className="p-4">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
-              <div className="flex items-center">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={i < restaurant.rating ? 'text-yellow-400' : 'text-gray-200'}
-                    size={16}
-                    fill={i < restaurant.rating ? 'currentColor' : 'none'}
-                  />
-                ))}
-              </div>
+            <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+              {restaurant.to_try ? (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">
+                  To Try
+                </span>
+              ) : (
+                <div className="flex items-center">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={i < restaurant.rating ? 'text-yellow-400' : 'text-gray-200'}
+                      size={16}
+                      fill={i < restaurant.rating ? 'currentColor' : 'none'}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center text-sm text-gray-600 mb-4">
-            <span className="mr-2">{getEmoji(restaurant.restaurant_types.name)}</span>
+              <span className="mr-2">{getEmoji(restaurant.restaurant_types.name)}</span>
               <span className="mr-4">{restaurant.restaurant_types.name}</span>
               <span className="mr-2">{getCityEmoji(restaurant.cities.name)}</span>
               <span>{restaurant.cities.name}</span>
@@ -445,17 +463,21 @@ const RestaurantDashboard = () => {
   };
 
   const filteredRestaurants = restaurants.filter(restaurant => {
+    const isVisited = !restaurant.to_try && restaurant.rating > 0;
     return (
       restaurant.name.toLowerCase().includes(filters.name.toLowerCase()) &&
       (!filters.type_id || restaurant.restaurant_types.id === filters.type_id) &&
       (!filters.city_id || restaurant.cities.id === filters.city_id) &&
-      restaurant.rating >= filters.rating
+      (filters.toTry === null || 
+        (filters.toTry === true && restaurant.to_try === true) ||
+        (filters.toTry === false && isVisited)) &&
+      (filters.toTry !== false || restaurant.rating >= filters.rating)
     );
   }).sort((a, b) => {
     if (sortOption === 'name') {
       return a.name.localeCompare(b.name);
     } else if (sortOption === 'rating') {
-      return b.rating - a.rating;
+      return (b.rating || 0) - (a.rating || 0);
     } else if (sortOption === 'dateAdded') {
       return new Date(b.created_at) - new Date(a.created_at);
     }
@@ -464,10 +486,10 @@ const RestaurantDashboard = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Restaurant Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-4">My Favorants</h1>
       <div className="flex space-x-2 mb-4">
         <Button onClick={() => setIsAddDialogOpen(true)}>
-          <PlusCircle size={16} className="mr-2" /> Add Restaurant
+          <PlusCircle size={16} className="mr-2" /> Add Favorant
         </Button>
         <Button onClick={() => setIsFilterDialogOpen(true)} variant="outline">
           <Filter size={16} className="mr-2" /> Filter & Sort
@@ -477,7 +499,7 @@ const RestaurantDashboard = () => {
       <SimpleDialog
         isOpen={isFilterDialogOpen}
         onClose={() => setIsFilterDialogOpen(false)}
-        title="Filter & Sort Restaurants"
+        title="Filter & Sort Favorants"
       >
         <RestaurantFilter
           types={types}
@@ -493,7 +515,7 @@ const RestaurantDashboard = () => {
       <SimpleDialog
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
-        title="Add New Restaurant"
+        title="Add New Favorant"
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -520,30 +542,40 @@ const RestaurantDashboard = () => {
             placeholder="Enter city"
             title="City"
           />
-          <div className="space-y-2">
-            <Label>Rating</Label>
-            <div className="flex space-x-2">
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Button
-                  key={value}
-                  variant={rating === value ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setRating(value)}
-                >
-                  {value} <Star className="ml-1" size={14} />
-                </Button>
-              ))}
-            </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="to-try"
+              checked={toTry}
+              onCheckedChange={setToTry}
+            />
+            <Label htmlFor="to-try">To Try</Label>
           </div>
+          {!toTry && (
+            <div className="space-y-2">
+              <Label>Rating</Label>
+              <div className="flex space-x-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Button
+                    key={value}
+                    variant={rating === value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setRating(value)}
+                  >
+                    {value} <Star className="ml-1" size={14} />
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex justify-end mt-4">
-            <Button onClick={addRestaurant}>Add Restaurant</Button>
+            <Button onClick={addRestaurant}>Add Favorant</Button>
           </div>
         </div>
       </SimpleDialog>
       <SimpleDialog
         isOpen={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
-        title="Edit Restaurant"
+        title="Edit Favorant"
       >
         {editingRestaurant && (
           <div className="space-y-4">
@@ -575,21 +607,37 @@ const RestaurantDashboard = () => {
               placeholder="Enter city"
               title="City"
             />
-            <div className="space-y-2">
-              <Label>Rating</Label>
-              <div className="flex space-x-2">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <Button
-                    key={value}
-                    variant={editingRestaurant.rating === value ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setEditingRestaurant({ ...editingRestaurant, rating: value })}
-                  >
-                    {value} <Star className="ml-1" size={14} />
-                  </Button>
-                ))}
-              </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-to-try"
+                checked={editingRestaurant.to_try}
+                onCheckedChange={(checked) => {
+                  setEditingRestaurant({ 
+                    ...editingRestaurant, 
+                    to_try: checked,
+                    rating: checked ? 0 : editingRestaurant.rating 
+                  });
+                }}
+              />
+              <Label htmlFor="edit-to-try">To Try</Label>
             </div>
+            {!editingRestaurant.to_try && (
+              <div className="space-y-2">
+                <Label>Rating</Label>
+                <div className="flex space-x-2">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Button
+                      key={value}
+                      variant={editingRestaurant.rating === value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setEditingRestaurant({ ...editingRestaurant, rating: value })}
+                    >
+                      {value} <Star className="ml-1" size={14} />
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-end mt-4">
               <Button onClick={() => updateRestaurant(editingRestaurant)}>Save Changes</Button>
             </div>
