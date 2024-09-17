@@ -3,6 +3,16 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Star } from 'lucide-react';
 
+const PriceDisplay = ({ price }) => {
+  return (
+    <div className="inline-flex text-sm">
+      <span className="text-black">€</span>
+      <span className={price >= 2 ? "text-black" : "text-gray-300"}>€</span>
+      <span className={price >= 3 ? "text-black" : "text-gray-300"}>€</span>
+    </div>
+  );
+};
+
 const RestaurantCard = ({ restaurant, onClick }) => {
   const getEmoji = (type) => {
     const emojiMap = {
@@ -30,7 +40,7 @@ const RestaurantCard = ({ restaurant, onClick }) => {
           <Star
             key={index}
             size={16}
-            className={index < starCount ? "text-yellow-400 fill-current" : "text-gray-300"}
+            className={index < starCount ? "text-yellow-400 fill-current" : "text-gray-200"}
           />
         ))}
       </div>
@@ -47,21 +57,26 @@ const RestaurantCard = ({ restaurant, onClick }) => {
     >
       <Card className="mb-4 overflow-hidden hover:shadow-md transition-shadow duration-300 cursor-pointer">
         <CardContent className="p-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <h3 className="text-lg font-semibold">{restaurant.name}</h3>
-            {restaurant.to_try ? (
-              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                To Try
-              </span>
-            ) : (
-              renderStars(restaurant.rating)
-            )}
+            <div className="flex flex-col items-end">
+              {restaurant.to_try ? (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                  To Try
+                </span>
+              ) : (
+                renderStars(restaurant.rating)
+              )}
+            </div>
           </div>
-          <div className="flex items-center text-sm text-gray-600 mt-2">
-            <span className="mr-2">{getEmoji(restaurant.restaurant_types.name)}</span>
-            <span className="mr-4">{restaurant.restaurant_types.name}</span>
-            <span className="mr-2">{getCityEmoji(restaurant.cities.name)}</span>
-            <span>{restaurant.cities.name}</span>
+          <div className="flex items-center justify-between text-sm text-gray-600 mt-2">
+            <div className="flex items-center">
+              <span className="mr-2">{getEmoji(restaurant.restaurant_types.name)}</span>
+              <span className="mr-4">{restaurant.restaurant_types.name}</span>
+              <span className="mr-2">{getCityEmoji(restaurant.cities.name)}</span>
+              <span>{restaurant.cities.name}</span>
+            </div>
+            <PriceDisplay price={restaurant.price} />
           </div>
         </CardContent>
       </Card>

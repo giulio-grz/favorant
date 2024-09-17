@@ -1,19 +1,14 @@
 import React from 'react';
 import { SimpleDialog } from '../../../components/ui/SimpleDialog';
 import { Button } from '../../../components/ui/button';
-import { Edit, Trash2, MapPin, UtensilsCrossed, Euro, ClipboardCheck, Star } from 'lucide-react';
+import { Edit, Trash2, MapPin, UtensilsCrossed, ClipboardCheck, Star } from 'lucide-react';
 
-const PriceIndicator = ({ price }) => {
-  const maxPrice = 3;
+const PriceDisplay = ({ price }) => {
   return (
-    <div className="flex">
-      {[...Array(maxPrice)].map((_, index) => (
-        <Euro
-          key={index}
-          size={14}
-          className={index < price ? "text-emerald-500 fill-current" : "text-gray-200"}
-        />
-      ))}
+    <div className="inline-flex">
+      <span className="text-black">€</span>
+      <span className={price >= 2 ? "text-black" : "text-gray-300"}>€</span>
+      <span className={price >= 3 ? "text-black" : "text-gray-300"}>€</span>
     </div>
   );
 };
@@ -25,8 +20,8 @@ const RatingStars = ({ rating }) => {
       {[...Array(5)].map((_, index) => (
         <Star
           key={index}
-          size={14}
-          className={index < starCount ? "text-amber-400 fill-current" : "text-gray-200"}
+          size={16}
+          className={index < starCount ? "text-yellow-400 fill-current" : "text-gray-200"}
         />
       ))}
     </div>
@@ -34,12 +29,12 @@ const RatingStars = ({ rating }) => {
 };
 
 const InfoItem = ({ icon: Icon, label, children }) => (
-  <div className="bg-gray-50 rounded-lg p-3 flex items-center space-x-3">
-    <Icon size={16} className="text-gray-400 flex-shrink-0" />
-    <div className="flex-1 min-w-0">
-      <span className="text-xs text-gray-500 block">{label}</span>
-      <div className="font-medium text-gray-900 text-sm truncate">{children}</div>
+  <div className="bg-gray-50 rounded-lg p-3">
+    <div className="flex items-center space-x-3 mb-1">
+      <Icon size={18} className="text-gray-400 flex-shrink-0" />
+      <span className="text-xs text-gray-500">{label}</span>
     </div>
+    <div className="font-medium text-gray-900 text-sm">{children}</div>
   </div>
 );
 
@@ -65,8 +60,8 @@ const RestaurantPopup = ({ restaurant, isOpen, onClose, onEdit, onDelete }) => {
           <InfoItem icon={MapPin} label="Location">
             {restaurant.cities.name}
           </InfoItem>
-          <InfoItem icon={Euro} label="Price">
-            <PriceIndicator price={restaurant.price || 0} />
+          <InfoItem icon={() => <span className="text-gray-400">€</span>} label="Price">
+            <PriceDisplay price={restaurant.price} />
           </InfoItem>
           <InfoItem icon={Star} label="Rating">
             {restaurant.to_try ? (
