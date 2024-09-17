@@ -1,5 +1,5 @@
 import React from 'react';
-import RestaurantDashboard from './RestaurantDashboard';
+import RestaurantDashboard from './features/restaurants/RestaurantDashboard';
 import ErrorBoundary from './ErrorBoundary';
 
 function App() {
