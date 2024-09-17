@@ -4,6 +4,7 @@ import { PlusCircle, Filter } from 'lucide-react';
 import RestaurantFilter from './components/RestaurantFilter';
 import { motion, AnimatePresence } from 'framer-motion';
 import RestaurantCard from './components/RestaurantCard';
+import RestaurantPopup from './components/RestaurantPopup';
 import AddRestaurant from './components/AddRestaurant';
 import { SimpleDialog } from '../../components/ui/SimpleDialog';
 import { useRestaurants } from './hooks/useRestaurants';
@@ -34,10 +35,12 @@ const RestaurantDashboard = () => {
   });
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [sortOption, setSortOption] = useState('dateAdded');
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
 
   const handleEditRestaurant = (restaurant) => {
     setEditingRestaurant(restaurant);
     setIsEditDialogOpen(true);
+    setSelectedRestaurant(null);
   };
 
   const handleAddRestaurant = async (newRestaurant) => {
@@ -66,10 +69,19 @@ const RestaurantDashboard = () => {
     try {
       await deleteRestaurant(id);
       removeRestaurantFromState(id);
+      setSelectedRestaurant(null);
     } catch (error) {
       console.error('Failed to delete restaurant:', error);
       alert(`Failed to delete restaurant: ${error.message}`);
     }
+  };
+
+  const handleRestaurantClick = (restaurant) => {
+    setSelectedRestaurant(restaurant);
+  };
+
+  const handleClosePopup = () => {
+    setSelectedRestaurant(null);
   };
 
   const filteredRestaurants = restaurants.filter(restaurant => {
@@ -171,11 +183,18 @@ const RestaurantDashboard = () => {
           <RestaurantCard 
             key={restaurant.id} 
             restaurant={restaurant} 
-            handleEditRestaurant={handleEditRestaurant}
-            deleteRestaurant={handleDeleteRestaurant}
+            onClick={() => handleRestaurantClick(restaurant)}
           />
         ))}
       </AnimatePresence>
+
+      <RestaurantPopup 
+        restaurant={selectedRestaurant}
+        isOpen={!!selectedRestaurant}
+        onClose={handleClosePopup}
+        onEdit={handleEditRestaurant}
+        onDelete={handleDeleteRestaurant}
+      />
     </div>
   );
 };
