@@ -3,6 +3,7 @@ import { Button } from './components/ui/button';
 import { Label } from './components/ui/label';
 import { Input } from './components/ui/input';
 import { Star } from 'lucide-react';
+import { Switch } from "./components/ui/switch";
 
 const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setSortOption, onClose }) => {
   const clearFilters = () => {
@@ -10,6 +11,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       name: '',
       type_id: null,
       city_id: null,
+      toTry: null,
       rating: 0
     });
     setSortOption('dateAdded');
@@ -56,21 +58,33 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
           ))}
         </div>
       </div>
-      <div>
-        <Label>Minimum Rating</Label>
-        <div className="flex space-x-2">
-          {[1, 2, 3, 4, 5].map((value) => (
-            <Button
-              key={value}
-              variant={filters.rating === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilters({ ...filters, rating: filters.rating === value ? 0 : value })}
-            >
-              {value} <Star className="ml-1" size={14} />
-            </Button>
-          ))}
-        </div>
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="to-try-filter"
+          checked={filters.toTry === true}
+          onCheckedChange={(checked) => {
+            setFilters({ ...filters, toTry: checked ? true : null, rating: checked ? 0 : filters.rating });
+          }}
+        />
+        <Label htmlFor="to-try-filter">To Try</Label>
       </div>
+      {filters.toTry !== true && (
+        <div>
+          <Label>Minimum Rating</Label>
+          <div className="flex space-x-2">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <Button
+                key={value}
+                variant={filters.rating === value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters({ ...filters, rating: filters.rating === value ? 0 : value, toTry: false })}
+              >
+                {value} <Star className="ml-1" size={14} />
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       <div>
         <Label>Sort By</Label>
         <div className="flex space-x-2">
