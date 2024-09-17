@@ -11,7 +11,14 @@ import { useTypesAndCities } from './hooks/useTypesAndCities';
 import { useRestaurantOperations } from './hooks/useRestaurantOperations';
 
 const RestaurantDashboard = () => {
-  const { restaurants, loading, error, setRestaurants } = useRestaurants();
+  const { 
+    restaurants, 
+    loading, 
+    error, 
+    addRestaurantToState, 
+    updateRestaurantInState, 
+    removeRestaurantFromState 
+  } = useRestaurants();
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
   const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
 
@@ -31,6 +38,38 @@ const RestaurantDashboard = () => {
   const handleEditRestaurant = (restaurant) => {
     setEditingRestaurant(restaurant);
     setIsEditDialogOpen(true);
+  };
+
+  const handleAddRestaurant = async (newRestaurant) => {
+    try {
+      const addedRestaurant = await addRestaurant(newRestaurant);
+      addRestaurantToState(addedRestaurant);
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to add restaurant:', error);
+      alert(`Failed to add restaurant: ${error.message}`);
+    }
+  };
+
+  const handleUpdateRestaurant = async (updatedRestaurant) => {
+    try {
+      const updated = await updateRestaurant(editingRestaurant.id, updatedRestaurant);
+      updateRestaurantInState(updated);
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to update restaurant:', error);
+      alert(`Failed to update restaurant: ${error.message}`);
+    }
+  };
+
+  const handleDeleteRestaurant = async (id) => {
+    try {
+      await deleteRestaurant(id);
+      removeRestaurantFromState(id);
+    } catch (error) {
+      console.error('Failed to delete restaurant:', error);
+      alert(`Failed to delete restaurant: ${error.message}`);
+    }
   };
 
   const filteredRestaurants = restaurants.filter(restaurant => {
@@ -87,77 +126,54 @@ const RestaurantDashboard = () => {
       </SimpleDialog>
 
       <SimpleDialog
-  isOpen={isAddDialogOpen}
-  onClose={() => setIsAddDialogOpen(false)}
-  title="Add New Favorant"
->
-  <AddRestaurant
-    onAdd={async (newRestaurant) => {
-      try {
-        const addedRestaurant = await addRestaurant(newRestaurant);
-        setRestaurants(prev => [...prev, addedRestaurant]);
-        setIsAddDialogOpen(false);
-      } catch (error) {
-        alert('Failed to add restaurant: ' + error.message);
-      }
-    }}
-    onCancel={() => setIsAddDialogOpen(false)}
-    types={types}
-    cities={cities}
-    addType={addType}
-    editType={editType}
-    deleteType={deleteType}
-    addCity={addCity}
-    editCity={editCity}
-    deleteCity={deleteCity}
-  />
-</SimpleDialog>
+        isOpen={isAddDialogOpen}
+        onClose={() => setIsAddDialogOpen(false)}
+        title="Add New Favorant"
+      >
+        <AddRestaurant
+          onAdd={handleAddRestaurant}
+          onCancel={() => setIsAddDialogOpen(false)}
+          types={types}
+          cities={cities}
+          addType={addType}
+          editType={editType}
+          deleteType={deleteType}
+          addCity={addCity}
+          editCity={editCity}
+          deleteCity={deleteCity}
+        />
+      </SimpleDialog>
 
-<SimpleDialog
-  isOpen={isEditDialogOpen}
-  onClose={() => setIsEditDialogOpen(false)}
-  title="Edit Favorant"
->
-  {editingRestaurant && (
-    <AddRestaurant
-      initialData={editingRestaurant}
-      onAdd={async (updatedRestaurant) => {
-        try {
-          const updated = await updateRestaurant(editingRestaurant.id, updatedRestaurant);
-          setRestaurants(prev => prev.map(r => r.id === editingRestaurant.id ? updated : r));
-          setIsEditDialogOpen(false);
-        } catch (error) {
-          alert('Failed to update restaurant: ' + error.message);
-        }
-      }}
-      onCancel={() => setIsEditDialogOpen(false)}
-      types={types}
-      cities={cities}
-      addType={addType}
-      editType={editType}
-      deleteType={deleteType}
-      addCity={addCity}
-      editCity={editCity}
-      deleteCity={deleteCity}
-    />
-  )}
-</SimpleDialog>
+      <SimpleDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        title="Edit Favorant"
+      >
+        {editingRestaurant && (
+          <AddRestaurant
+            initialData={editingRestaurant}
+            onAdd={handleUpdateRestaurant}
+            onCancel={() => setIsEditDialogOpen(false)}
+            types={types}
+            cities={cities}
+            addType={addType}
+            editType={editType}
+            deleteType={deleteType}
+            addCity={addCity}
+            editCity={editCity}
+            deleteCity={deleteCity}
+          />
+        )}
+      </SimpleDialog>
 
       <AnimatePresence>
         {filteredRestaurants.map((restaurant) => (
           <RestaurantCard 
-          key={restaurant.id} 
-          restaurant={restaurant} 
-          handleEditRestaurant={handleEditRestaurant}
-          deleteRestaurant={async (id) => {
-            try {
-              await deleteRestaurant(id);
-              setRestaurants(prev => prev.filter(r => r.id !== id));
-            } catch (error) {
-              alert('Failed to delete restaurant: ' + error.message);
-            }
-          }}
-        />
+            key={restaurant.id} 
+            restaurant={restaurant} 
+            handleEditRestaurant={handleEditRestaurant}
+            deleteRestaurant={handleDeleteRestaurant}
+          />
         ))}
       </AnimatePresence>
     </div>

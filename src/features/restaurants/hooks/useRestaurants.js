@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 
 export const useRestaurants = () => {
@@ -6,7 +6,7 @@ export const useRestaurants = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchRestaurants = async () => {
+  const fetchRestaurants = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -25,11 +25,31 @@ export const useRestaurants = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchRestaurants();
-  }, []);
+  }, [fetchRestaurants]);
 
-  return { restaurants, loading, error, fetchRestaurants, setRestaurants };
+  const addRestaurantToState = (newRestaurant) => {
+    setRestaurants(prev => [newRestaurant, ...prev]);
+  };
+
+  const updateRestaurantInState = (updatedRestaurant) => {
+    setRestaurants(prev => prev.map(r => r.id === updatedRestaurant.id ? updatedRestaurant : r));
+  };
+
+  const removeRestaurantFromState = (id) => {
+    setRestaurants(prev => prev.filter(r => r.id !== id));
+  };
+
+  return { 
+    restaurants, 
+    loading, 
+    error, 
+    fetchRestaurants, 
+    addRestaurantToState, 
+    updateRestaurantInState, 
+    removeRestaurantFromState 
+  };
 };
