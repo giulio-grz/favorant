@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
 import { PlusCircle, Filter } from 'lucide-react';
 import RestaurantFilter from './components/RestaurantFilter';
@@ -12,14 +12,7 @@ import { useTypesAndCities } from './hooks/useTypesAndCities';
 import { useRestaurantOperations } from './hooks/useRestaurantOperations';
 
 const RestaurantDashboard = () => {
-  const { 
-    restaurants, 
-    loading, 
-    error, 
-    addRestaurantToState, 
-    updateRestaurantInState, 
-    removeRestaurantFromState 
-  } = useRestaurants();
+  const { restaurants, loading, error, fetchRestaurants } = useRestaurants();
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
   const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
 
@@ -31,11 +24,18 @@ const RestaurantDashboard = () => {
     type_id: null,
     city_id: null,
     toTry: null,
-    rating: 0
+    rating: 0,
+    price: null
   });
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [sortOption, setSortOption] = useState('dateAdded');
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+
+  const activeFilterCount = useMemo(() => {
+    return Object.values(filters).filter(value => 
+      value !== null && value !== '' && value !== 0
+    ).length + (sortOption !== 'dateAdded' ? 1 : 0);
+  }, [filters, sortOption]);
 
   const handleEditRestaurant = (restaurant) => {
     setEditingRestaurant(restaurant);
@@ -46,7 +46,7 @@ const RestaurantDashboard = () => {
   const handleAddRestaurant = async (newRestaurant) => {
     try {
       const addedRestaurant = await addRestaurant(newRestaurant);
-      addRestaurantToState(addedRestaurant);
+      await fetchRestaurants();
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Failed to add restaurant:', error);
@@ -56,8 +56,8 @@ const RestaurantDashboard = () => {
 
   const handleUpdateRestaurant = async (updatedRestaurant) => {
     try {
-      const updated = await updateRestaurant(editingRestaurant.id, updatedRestaurant);
-      updateRestaurantInState(updated);
+      await updateRestaurant(editingRestaurant.id, updatedRestaurant);
+      await fetchRestaurants();
       setIsEditDialogOpen(false);
     } catch (error) {
       console.error('Failed to update restaurant:', error);
@@ -68,7 +68,7 @@ const RestaurantDashboard = () => {
   const handleDeleteRestaurant = async (id) => {
     try {
       await deleteRestaurant(id);
-      removeRestaurantFromState(id);
+      await fetchRestaurants();
       setSelectedRestaurant(null);
     } catch (error) {
       console.error('Failed to delete restaurant:', error);
@@ -90,6 +90,7 @@ const RestaurantDashboard = () => {
       restaurant.name.toLowerCase().includes(filters.name.toLowerCase()) &&
       (!filters.type_id || restaurant.restaurant_types.id === filters.type_id) &&
       (!filters.city_id || restaurant.cities.id === filters.city_id) &&
+      (!filters.price || restaurant.price === filters.price) &&
       (filters.toTry === null || 
         (filters.toTry === true && restaurant.to_try === true) ||
         (filters.toTry === false && isVisited)) &&
@@ -116,8 +117,13 @@ const RestaurantDashboard = () => {
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <PlusCircle size={16} className="mr-2" /> Add Favorant
         </Button>
-        <Button onClick={() => setIsFilterDialogOpen(true)} variant="outline">
+        <Button onClick={() => setIsFilterDialogOpen(true)} variant="outline" className="relative">
           <Filter size={16} className="mr-2" /> Filter & Sort
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
         </Button>
       </div>
       
