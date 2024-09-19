@@ -2,13 +2,22 @@ import { supabase } from '../../../supabaseClient';
 
 export const useRestaurantOperations = () => {
   const addRestaurant = async (restaurantData) => {
+    const { id, ...dataWithoutId } = restaurantData;
+    console.log('Attempting to add restaurant with data:', dataWithoutId);
+    
     const { data, error } = await supabase
       .from('restaurants')
-      .insert([restaurantData])
-      .select(`*, restaurant_types(id, name), cities(id, name)`);
+      .insert([dataWithoutId])
+      .select(`*, restaurant_types(id, name), cities(id, name)`)
+      .single();
     
-    if (error) throw error;
-    return data[0];
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+    
+    console.log('Successfully added restaurant:', data);
+    return data;
   };
 
   const updateRestaurant = async (id, updatedRestaurant) => {

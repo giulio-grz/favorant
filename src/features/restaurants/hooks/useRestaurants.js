@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../../supabaseClient';
+import { supabase, getLikedRestaurants } from '../../../supabaseClient';
 
 export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dateAdded') => {
   const [restaurants, setRestaurants] = useState([]);
@@ -16,8 +16,8 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
         .from('restaurants')
         .select(`
           *,
-          restaurant_types(id, name),
-          cities(id, name)
+          restaurant_types (id, name),
+          cities (id, name)
         `, { count: 'exact' })
         .eq('user_id', userId);
 
@@ -49,11 +49,21 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       // Apply pagination
       query = query.range((page - 1) * perPage, page * perPage - 1);
 
-      const { data, error, count } = await query;
+      const { data: ownedRestaurants, error: ownedError, count } = await query;
 
-      if (error) throw error;
-      setRestaurants(data);
-      setTotalCount(count);
+      if (ownedError) throw ownedError;
+
+      // Fetch liked restaurants
+      const likedRestaurants = await getLikedRestaurants(userId);
+
+      // Combine owned and liked restaurants, marking owned ones
+      const allRestaurants = [
+        ...ownedRestaurants.map(r => ({ ...r, isOwned: true })),
+        ...likedRestaurants.filter(lr => !ownedRestaurants.some(or => or.id === lr.id))
+      ];
+
+      setRestaurants(allRestaurants);
+      setTotalCount(count + likedRestaurants.length);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -72,8 +82,8 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
         .from('restaurants')
         .select(`
           *,
-          restaurant_types(id, name),
-          cities(id, name)
+          restaurant_types (id, name),
+          cities (id, name)
         `)
         .eq('user_id', userId);
 
@@ -108,7 +118,22 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       const { data, error } = await query;
 
       if (error) throw error;
-      setRestaurants(prevRestaurants => [...prevRestaurants, ...data]);
+
+      // Fetch liked status for new restaurants
+      const newRestaurantsWithLikedStatus = await Promise.all(
+        data.map(async (restaurant) => {
+          const { data: likedData } = await supabase
+            .from('liked_restaurants')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('restaurant_id', restaurant.id)
+            .single();
+
+          return { ...restaurant, isLiked: !!likedData };
+        })
+      );
+
+      setRestaurants(prevRestaurants => [...prevRestaurants, ...newRestaurantsWithLikedStatus]);
     } catch (error) {
       setError(error.message);
     }
@@ -116,6 +141,7 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
 
   return { 
     restaurants, 
+    setRestaurants,
     loading, 
     error, 
     fetchRestaurants,

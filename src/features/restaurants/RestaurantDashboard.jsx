@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getCurrentUser, getProfile } from '../../supabaseClient';
+import { getCurrentUser, getProfile, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
 import UserSearch from '../../components/UserSearch';
 import UserMenu from '../../components/UserMenu';
 import { useRestaurants } from './hooks/useRestaurants';
@@ -12,6 +12,7 @@ import { useTypesAndCities } from './hooks/useTypesAndCities';
 import { useRestaurantOperations } from './hooks/useRestaurantOperations';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { PlusCircle, Filter, ArrowLeft } from 'lucide-react';
+import MobileMenu from './MobileMenu';
 
 const RestaurantDashboard = ({ user, setUser }) => {
   const [viewingUserId, setViewingUserId] = useState(user?.id);
@@ -35,7 +36,15 @@ const RestaurantDashboard = ({ user, setUser }) => {
   
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
   const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
-  const { restaurants, loading, error, fetchRestaurants, totalCount, loadMore } = useRestaurants(viewingUserId, page, filters, sortOption);
+  const { 
+    restaurants, 
+    setRestaurants,
+    loading, 
+    error, 
+    fetchRestaurants, 
+    totalCount, 
+    loadMore 
+  } = useRestaurants(viewingUserId, page, filters, sortOption);
 
   useEffect(() => {
     if (viewingUserId) {
@@ -64,8 +73,8 @@ const RestaurantDashboard = ({ user, setUser }) => {
 
   const handleAddRestaurant = async (newRestaurant) => {
     try {
-      await addRestaurant({ ...newRestaurant, user_id: user.id });
-      fetchRestaurants();
+      const addedRestaurant = await addRestaurant({ ...newRestaurant, user_id: user.id });
+      setRestaurants(prevRestaurants => [addedRestaurant, ...prevRestaurants]);
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Failed to add restaurant:', error);
@@ -113,6 +122,33 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   };
 
+  const handleLike = async (restaurantId) => {
+    try {
+      await likeRestaurant(user.id, restaurantId);
+      setRestaurants(prevRestaurants => 
+        prevRestaurants.map(r => 
+          r.id === restaurantId ? { ...r, isLiked: true } : r
+        )
+      );
+    } catch (error) {
+      console.error('Failed to like restaurant:', error);
+      alert(`Failed to like restaurant: ${error.message}`);
+    }
+  };
+
+  const handleUnlike = async (restaurantId) => {
+    try {
+      await unlikeRestaurant(user.id, restaurantId);
+      setRestaurants(prevRestaurants => 
+        prevRestaurants.filter(r => r.id !== restaurantId || r.user_id === user.id)
+      );
+      setTotalCount(prevCount => prevCount - 1);
+    } catch (error) {
+      console.error('Failed to unlike restaurant:', error);
+      alert(`Failed to unlike restaurant: ${error.message}`);
+    }
+  };
+
   const activeFilterCount = Object.values(filters).filter(value => 
     value !== null && value !== '' && value !== 0 && value !== false
   ).length;
@@ -122,7 +158,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <div className="mt-10">
+      <div className="mt-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">
             {searchedUser ? `${searchedUser.username}'s Favorants` : 'My Favorants'}
@@ -142,38 +178,29 @@ const RestaurantDashboard = ({ user, setUser }) => {
                 Back
               </Button>
             )}
-            <Button 
-              onClick={() => setIsFilterDialogOpen(true)} 
-              variant="outline" 
-              size="sm"
-              className="relative"
-            >
-              <Filter className="mr-2 h-4 w-4" /> 
-              Filter
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
-            {user.id === viewingUserId && (
-              <Button onClick={() => setIsAddDialogOpen(true)} size="sm" className="bg-primary hover:bg-primary/90">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-              </Button>
-            )}
-            <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id} />
-            <UserMenu user={user} setUser={setUser} />
+            <MobileMenu 
+              onAddClick={() => setIsAddDialogOpen(true)}
+              onFilterClick={() => setIsFilterDialogOpen(true)}
+              onUserSelect={handleUserSelect}
+              currentUserId={user.id}
+              user={user}
+              setUser={setUser}
+              canAdd={user.id === viewingUserId}
+            />
           </div>
         </div>
       </div>
       
-      <div className="mt-20">
+      <div className="mt-8">
         <div className="grid grid-cols-1 gap-4">
           {restaurants.map((restaurant) => (
             <RestaurantCard 
               key={restaurant.id} 
               restaurant={restaurant} 
               onClick={() => handleRestaurantClick(restaurant)}
+              onLike={handleLike}
+              onUnlike={handleUnlike}
+              currentUserId={user.id}
             />
           ))}
         </div>
