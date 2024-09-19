@@ -74,6 +74,7 @@ const AddRestaurant = ({ onAdd, onCancel, types, cities, addType, editType, dele
     if (name && type && city) {
       try {
         const restaurantData = { 
+          id: initialData?.id,
           name, 
           type_id: type.id, 
           city_id: city.id, 
@@ -82,7 +83,7 @@ const AddRestaurant = ({ onAdd, onCancel, types, cities, addType, editType, dele
           notes,
           to_try: toTry 
         };
-
+  
         await onAdd(restaurantData);
         resetForm();
       } catch (error) {

@@ -1,24 +1,23 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getCurrentUser, getProfile } from '../../supabaseClient';
+import UserSearch from '../../components/UserSearch';
+import UserMenu from '../../components/UserMenu';
+import { useRestaurants } from './hooks/useRestaurants';
 import { Button } from '../../components/ui/button';
-import { PlusCircle, Filter } from 'lucide-react';
-import RestaurantFilter from './components/RestaurantFilter';
-import { motion, AnimatePresence } from 'framer-motion';
 import RestaurantCard from './components/RestaurantCard';
 import RestaurantPopup from './components/RestaurantPopup';
 import AddRestaurant from './components/AddRestaurant';
-import { SimpleDialog } from '../../components/ui/SimpleDialog';
-import { useRestaurants } from './hooks/useRestaurants';
+import RestaurantFilter from './components/RestaurantFilter';
 import { useTypesAndCities } from './hooks/useTypesAndCities';
 import { useRestaurantOperations } from './hooks/useRestaurantOperations';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
+import { PlusCircle, Filter, ArrowLeft } from 'lucide-react';
 
-const RestaurantDashboard = () => {
-  const { restaurants, loading, error, fetchRestaurants } = useRestaurants();
-  const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
-  const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingRestaurant, setEditingRestaurant] = useState(null);
+const RestaurantDashboard = ({ user, setUser }) => {
+  const [viewingUserId, setViewingUserId] = useState(user?.id);
+  const [viewingProfile, setViewingProfile] = useState(null);
+  const [searchedUser, setSearchedUser] = useState(null);
+  const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     name: '',
     type_id: null,
@@ -27,26 +26,46 @@ const RestaurantDashboard = () => {
     rating: 0,
     price: null
   });
-  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [sortOption, setSortOption] = useState('dateAdded');
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [restaurantToEdit, setRestaurantToEdit] = useState(null);
+  
+  const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
+  const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
+  const { restaurants, loading, error, fetchRestaurants, totalCount, loadMore } = useRestaurants(viewingUserId, page, filters, sortOption);
 
-  const activeFilterCount = useMemo(() => {
-    return Object.values(filters).filter(value => 
-      value !== null && value !== '' && value !== 0
-    ).length + (sortOption !== 'dateAdded' ? 1 : 0);
-  }, [filters, sortOption]);
+  useEffect(() => {
+    if (viewingUserId) {
+      const fetchProfile = async () => {
+        try {
+          const profile = await getProfile(viewingUserId);
+          setViewingProfile(profile);
+        } catch (error) {
+          console.error('Error fetching profile:', error);
+        }
+      };
+      fetchProfile();
+      fetchRestaurants();
+    }
+  }, [viewingUserId, fetchRestaurants]);
 
-  const handleEditRestaurant = (restaurant) => {
-    setEditingRestaurant(restaurant);
-    setIsEditDialogOpen(true);
-    setSelectedRestaurant(null);
+  const handleUserSelect = (selectedUser) => {
+    setSearchedUser(selectedUser);
+    setViewingUserId(selectedUser.id);
+    setPage(1);
+  };
+
+  const handleRestaurantClick = (restaurant) => {
+    setSelectedRestaurant(restaurant);
   };
 
   const handleAddRestaurant = async (newRestaurant) => {
     try {
-      const addedRestaurant = await addRestaurant(newRestaurant);
-      await fetchRestaurants();
+      await addRestaurant({ ...newRestaurant, user_id: user.id });
+      fetchRestaurants();
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Failed to add restaurant:', error);
@@ -54,11 +73,29 @@ const RestaurantDashboard = () => {
     }
   };
 
+  const handleEditClick = (restaurant) => {
+    setRestaurantToEdit(restaurant);
+    setIsEditDialogOpen(true);
+  };
+
   const handleUpdateRestaurant = async (updatedRestaurant) => {
     try {
-      await updateRestaurant(editingRestaurant.id, updatedRestaurant);
-      await fetchRestaurants();
+      const { id, city_id, type_id, cities, restaurant_types, ...rest } = updatedRestaurant;
+      
+      if (!id) {
+        throw new Error("Restaurant ID is missing");
+      }
+
+      const updateData = {
+        ...rest,
+        city_id: typeof city_id === 'object' ? city_id.id : city_id,
+        type_id: typeof type_id === 'object' ? type_id.id : type_id
+      };
+
+      await updateRestaurant(id, updateData);
+      fetchRestaurants();
       setIsEditDialogOpen(false);
+      setSelectedRestaurant(null);
     } catch (error) {
       console.error('Failed to update restaurant:', error);
       alert(`Failed to update restaurant: ${error.message}`);
@@ -68,7 +105,7 @@ const RestaurantDashboard = () => {
   const handleDeleteRestaurant = async (id) => {
     try {
       await deleteRestaurant(id);
-      await fetchRestaurants();
+      fetchRestaurants();
       setSelectedRestaurant(null);
     } catch (error) {
       console.error('Failed to delete restaurant:', error);
@@ -76,100 +113,118 @@ const RestaurantDashboard = () => {
     }
   };
 
-  const handleRestaurantClick = (restaurant) => {
-    setSelectedRestaurant(restaurant);
-  };
-
-  const handleClosePopup = () => {
-    setSelectedRestaurant(null);
-  };
-
-  const filteredRestaurants = restaurants.filter(restaurant => {
-    const isVisited = !restaurant.to_try && restaurant.rating > 0;
-    return (
-      restaurant.name.toLowerCase().includes(filters.name.toLowerCase()) &&
-      (!filters.type_id || restaurant.restaurant_types.id === filters.type_id) &&
-      (!filters.city_id || restaurant.cities.id === filters.city_id) &&
-      (!filters.price || restaurant.price === filters.price) &&
-      (filters.toTry === null || 
-        (filters.toTry === true && restaurant.to_try === true) ||
-        (filters.toTry === false && isVisited)) &&
-      (filters.toTry !== false || restaurant.rating >= filters.rating)
-    );
-  }).sort((a, b) => {
-    if (sortOption === 'name') {
-      return a.name.localeCompare(b.name);
-    } else if (sortOption === 'rating') {
-      return (b.rating || 0) - (a.rating || 0);
-    } else if (sortOption === 'dateAdded') {
-      return new Date(b.created_at) - new Date(a.created_at);
-    }
-    return 0;
-  });
+  const activeFilterCount = Object.values(filters).filter(value => 
+    value !== null && value !== '' && value !== 0 && value !== false
+  ).length;
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">My Favorants</h1>
-      <div className="flex space-x-2 mb-4">
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <PlusCircle size={16} className="mr-2" /> Add Favorant
-        </Button>
-        <Button onClick={() => setIsFilterDialogOpen(true)} variant="outline" className="relative">
-          <Filter size={16} className="mr-2" /> Filter & Sort
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {activeFilterCount}
-            </span>
-          )}
-        </Button>
+      <div className="mt-10">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">
+            {searchedUser ? `${searchedUser.username}'s Favorants` : 'My Favorants'}
+          </h1>
+          <div className="flex items-center space-x-2">
+            {searchedUser && (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchedUser(null);
+                  setViewingUserId(user.id);
+                }}
+                className="flex items-center"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+            )}
+            <Button 
+              onClick={() => setIsFilterDialogOpen(true)} 
+              variant="outline" 
+              size="sm"
+              className="relative"
+            >
+              <Filter className="mr-2 h-4 w-4" /> 
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+            {user.id === viewingUserId && (
+              <Button onClick={() => setIsAddDialogOpen(true)} size="sm" className="bg-primary hover:bg-primary/90">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add
+              </Button>
+            )}
+            <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id} />
+            <UserMenu user={user} setUser={setUser} />
+          </div>
+        </div>
       </div>
       
-      <SimpleDialog
-        isOpen={isFilterDialogOpen}
-        onClose={() => setIsFilterDialogOpen(false)}
-        title="Filter & Sort Favorants"
-      >
-        <RestaurantFilter
-          types={types}
-          cities={cities}
-          filters={filters}
-          setFilters={setFilters}
-          sortOption={sortOption}
-          setSortOption={setSortOption}
-          onClose={() => setIsFilterDialogOpen(false)}
-        />
-      </SimpleDialog>
-
-      <SimpleDialog
-        isOpen={isAddDialogOpen}
-        onClose={() => setIsAddDialogOpen(false)}
-        title="Add New Favorant"
-      >
-        <AddRestaurant
-          onAdd={handleAddRestaurant}
-          onCancel={() => setIsAddDialogOpen(false)}
-          types={types}
-          cities={cities}
-          addType={addType}
-          editType={editType}
-          deleteType={deleteType}
-          addCity={addCity}
-          editCity={editCity}
-          deleteCity={deleteCity}
-        />
-      </SimpleDialog>
-
-      <SimpleDialog
-        isOpen={isEditDialogOpen}
-        onClose={() => setIsEditDialogOpen(false)}
-        title="Edit Favorant"
-      >
-        {editingRestaurant && (
+      <div className="mt-20">
+        <div className="grid grid-cols-1 gap-4">
+          {restaurants.map((restaurant) => (
+            <RestaurantCard 
+              key={restaurant.id} 
+              restaurant={restaurant} 
+              onClick={() => handleRestaurantClick(restaurant)}
+            />
+          ))}
+        </div>
+      </div>
+      
+      {restaurants.length < totalCount && (
+        <Button onClick={loadMore} className="mt-6 w-full">Load More</Button>
+      )}
+      
+      <Dialog open={!!selectedRestaurant} onOpenChange={() => setSelectedRestaurant(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedRestaurant?.name}</DialogTitle>
+          </DialogHeader>
+          <RestaurantPopup
+            restaurant={selectedRestaurant}
+            onClose={() => setSelectedRestaurant(null)}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteRestaurant}
+            isOwner={user && user.id === viewingUserId}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Favorant</DialogTitle>
+            <DialogDescription>Enter the details for your new favorite restaurant.</DialogDescription>
+          </DialogHeader>
           <AddRestaurant
-            initialData={editingRestaurant}
+            onAdd={handleAddRestaurant}
+            onCancel={() => setIsAddDialogOpen(false)}
+            types={types}
+            cities={cities}
+            addType={addType}
+            editType={editType}
+            deleteType={deleteType}
+            addCity={addCity}
+            editCity={editCity}
+            deleteCity={deleteCity}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Favorant</DialogTitle>
+          </DialogHeader>
+          <AddRestaurant
             onAdd={handleUpdateRestaurant}
             onCancel={() => setIsEditDialogOpen(false)}
             types={types}
@@ -180,26 +235,20 @@ const RestaurantDashboard = () => {
             addCity={addCity}
             editCity={editCity}
             deleteCity={deleteCity}
+            initialData={restaurantToEdit}
           />
-        )}
-      </SimpleDialog>
-
-      <AnimatePresence>
-        {filteredRestaurants.map((restaurant) => (
-          <RestaurantCard 
-            key={restaurant.id} 
-            restaurant={restaurant} 
-            onClick={() => handleRestaurantClick(restaurant)}
-          />
-        ))}
-      </AnimatePresence>
-
-      <RestaurantPopup 
-        restaurant={selectedRestaurant}
-        isOpen={!!selectedRestaurant}
-        onClose={handleClosePopup}
-        onEdit={handleEditRestaurant}
-        onDelete={handleDeleteRestaurant}
+        </DialogContent>
+      </Dialog>
+      
+      <RestaurantFilter
+        isOpen={isFilterDialogOpen}
+        onClose={() => setIsFilterDialogOpen(false)}
+        types={types}
+        cities={cities}
+        filters={filters}
+        setFilters={setFilters}
+        sortOption={sortOption}
+        setSortOption={setSortOption}
       />
     </div>
   );

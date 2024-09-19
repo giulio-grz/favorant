@@ -16,7 +16,7 @@ export const useRestaurantOperations = () => {
       .from('restaurants')
       .update(updatedRestaurant)
       .eq('id', id)
-      .select(`*, restaurant_types(id, name), cities(id, name)`);
+      .select();
     
     if (error) throw error;
     return data[0];
