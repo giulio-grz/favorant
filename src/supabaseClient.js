@@ -115,7 +115,43 @@ export const updateProfile = async (userId, updates) => {
   return data;
 };
 
+export const likeRestaurant = async (userId, restaurantId) => {
+  const { data, error } = await supabase
+    .from('liked_restaurants')
+    .upsert({ user_id: userId, restaurant_id: restaurantId }, { onConflict: 'user_id,restaurant_id' });
+  if (error) throw error;
+  return data;
+};
+
+export const unlikeRestaurant = async (userId, restaurantId) => {
+  const { data, error } = await supabase
+    .from('liked_restaurants')
+    .delete()
+    .match({ user_id: userId, restaurant_id: restaurantId });
+  if (error) throw error;
+  return data;
+};
+
+export const getLikedRestaurants = async (userId) => {
+  const { data, error } = await supabase
+    .from('liked_restaurants')
+    .select(`
+      restaurant_id,
+      restaurants (*, restaurant_types(*), cities(*))
+    `)
+    .eq('user_id', userId);
+  if (error) throw error;
+  return data.map(item => ({ ...item.restaurants, isLiked: true }));
+};
+
 // Add this for debugging
 supabase.auth.onAuthStateChange((event, session) => {
   console.log('Auth event:', event, 'Session:', session)
 })
+
+export const updatePassword = async (currentPassword, newPassword) => {
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword
+  });
+  if (error) throw error;
+};
