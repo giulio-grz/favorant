@@ -132,16 +132,17 @@ export const unlikeRestaurant = async (userId, restaurantId) => {
   return data;
 };
 
-export const getLikedRestaurants = async (userId) => {
+export const getLikedRestaurants = async (userId, viewingUserId = userId) => {
   const { data, error } = await supabase
     .from('liked_restaurants')
     .select(`
       restaurant_id,
+      user_id,
       restaurants (*, restaurant_types(*), cities(*))
     `)
-    .eq('user_id', userId);
+    .eq(viewingUserId === userId ? 'user_id' : 'restaurants.user_id', viewingUserId);
   if (error) throw error;
-  return data.map(item => ({ ...item.restaurants, isLiked: true }));
+  return data.map(item => ({ ...item.restaurants, isLiked: item.user_id === userId }));
 };
 
 // Add this for debugging
