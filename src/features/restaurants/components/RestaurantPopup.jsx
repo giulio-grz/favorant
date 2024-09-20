@@ -37,8 +37,11 @@ const InfoItem = ({ icon: Icon, label, children }) => (
   </div>
 );
 
-const RestaurantPopup = ({ restaurant, onClose, onEdit, onDelete, isOwner }) => {
+const RestaurantPopup = ({ restaurant, onClose, onEdit, onDelete, currentUserId }) => {
   if (!restaurant) return null;
+
+  const isOwner = restaurant.user_id === currentUserId;
+  const isLikedOnly = restaurant.isLiked && !isOwner;
 
   return (
     <div className="space-y-4">
@@ -61,14 +64,23 @@ const RestaurantPopup = ({ restaurant, onClose, onEdit, onDelete, isOwner }) => 
           {restaurant.notes}
         </InfoItem>
       )}
-      {isOwner && (
+      {(isOwner || isLikedOnly) && (
         <div className="flex justify-end space-x-2 mt-4">
-          <Button onClick={() => onEdit(restaurant)} variant="outline" size="sm">
-            <Edit className="mr-2 h-4 w-4" /> Edit
-          </Button>
-          <Button onClick={() => onDelete(restaurant.id)} variant="destructive" size="sm">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete
-          </Button>
+          {isOwner && (
+            <>
+              <Button onClick={() => onEdit(restaurant)} variant="outline" size="sm">
+                <Edit className="mr-2 h-4 w-4" /> Edit
+              </Button>
+              <Button onClick={() => onDelete(restaurant.id)} variant="destructive" size="sm">
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </Button>
+            </>
+          )}
+          {isLikedOnly && (
+            <Button variant="secondary" size="sm" disabled>
+              Liked Restaurant (View Only)
+            </Button>
+          )}
         </div>
       )}
     </div>

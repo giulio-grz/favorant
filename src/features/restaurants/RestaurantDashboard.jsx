@@ -92,8 +92,12 @@ const RestaurantDashboard = ({ user, setUser }) => {
 
   // Handler for clicking edit on a restaurant
   const handleEditClick = (restaurant) => {
-    setRestaurantToEdit(restaurant);
-    setIsEditDialogOpen(true);
+    if (restaurant.user_id === user.id) {
+      setRestaurantToEdit(restaurant);
+      setIsEditDialogOpen(true);
+    } else {
+      alert("You can't edit a restaurant you don't own.");
+    }
   };
 
   // Handler for updating a restaurant
@@ -264,7 +268,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
             onClose={() => setSelectedRestaurant(null)}
             onEdit={handleEditClick}
             onDelete={handleDeleteRestaurant}
-            isOwner={user && user.id === viewingUserId}
+            currentUserId={user.id}
           />
         </DialogContent>
       </Dialog>
