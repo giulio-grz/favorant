@@ -3,7 +3,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-import { SimpleDialog } from '../../../components/ui/SimpleDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 
 const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDelete, placeholder, title }) => {
   const [inputValue, setInputValue] = useState('');
@@ -84,42 +84,43 @@ const DynamicInput = ({ options, selectedOption, onSelect, onAdd, onEdit, onDele
           </Button>
         </div>
       </div>
-      <SimpleDialog
-        isOpen={isDialogOpen}
-        onClose={() => {setIsDialogOpen(false); setIsEditing(false);}}
-        title={isEditing ? `Edit ${title}` : `Add New ${title}`}
-      >
-        <Input
-          placeholder={placeholder}
-          value={inputValue}
-          onChange={handleInputChange}
-          className="w-full text-sm mb-4"
-        />
-        <div className="flex justify-between">
-          {isEditing ? (
-            <>
-              <Button onClick={handleDelete} variant="destructive" size="sm" className="w-[32%]">
-                <Trash2 size={14} className="mr-1" /> Delete
-              </Button>
-              <Button onClick={() => {setIsDialogOpen(false); setIsEditing(false);}} variant="outline" size="sm" className="w-[32%]">
-                Cancel
-              </Button>
-              <Button onClick={handleEdit} size="sm" className="w-[32%]">
-                Save
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button onClick={() => {setInputValue(''); setIsDialogOpen(false);}} variant="outline" size="sm" className="w-[48%]">
-                Cancel
-              </Button>
-              <Button onClick={handleAddNew} size="sm" className="w-[48%]">
-                Save
-              </Button>
-            </>
-          )}
-        </div>
-      </SimpleDialog>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent aria-describedby="">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? `Edit ${title}` : `Add New ${title}`}</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder={placeholder}
+            value={inputValue}
+            onChange={handleInputChange}
+            className="w-full text-sm mb-4"
+          />
+          <div className="flex justify-between">
+            {isEditing ? (
+              <>
+                <Button onClick={handleDelete} variant="destructive" size="sm" className="w-[32%]">
+                  <Trash2 size={14} className="mr-1" /> Delete
+                </Button>
+                <Button onClick={() => {setIsDialogOpen(false); setIsEditing(false);}} variant="outline" size="sm" className="w-[32%]">
+                  Cancel
+                </Button>
+                <Button onClick={handleEdit} size="sm" className="w-[32%]">
+                  Save
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => {setInputValue(''); setIsDialogOpen(false);}} variant="outline" size="sm" className="w-[48%]">
+                  Cancel
+                </Button>
+                <Button onClick={handleAddNew} size="sm" className="w-[48%]">
+                  Save
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

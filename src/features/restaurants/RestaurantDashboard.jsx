@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
+import { getProfile, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
 import UserSearch from '../../components/UserSearch';
 import UserMenu from '../../components/UserMenu';
 import { useRestaurants } from './hooks/useRestaurants';
@@ -259,7 +259,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
       
       {/* Restaurant detail dialog */}
       <Dialog open={!!selectedRestaurant} onOpenChange={() => setSelectedRestaurant(null)}>
-        <DialogContent>
+        <DialogContent aria-describedby="">
           <DialogHeader>
             <DialogTitle>{selectedRestaurant?.name}</DialogTitle>
           </DialogHeader>
@@ -275,7 +275,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
       
       {/* Add restaurant dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="">
           <DialogHeader>
             <DialogTitle>Add New Favorant</DialogTitle>
             <DialogDescription>Enter the details for your new favorite restaurant.</DialogDescription>
@@ -297,7 +297,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
       
       {/* Edit restaurant dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="">
           <DialogHeader>
             <DialogTitle>Edit Favorant</DialogTitle>
           </DialogHeader>

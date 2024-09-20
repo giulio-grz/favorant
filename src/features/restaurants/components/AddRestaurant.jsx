@@ -7,7 +7,7 @@ import { Slider } from '../../../components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../components/ui/accordion';
 import { Euro, Star } from 'lucide-react';
 import { Switch } from '../../../components/ui/switch';
-import { SimpleDialog } from '../../../components/ui/SimpleDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 
 const PriceSelector = ({ price, setPrice }) => {
   return (
@@ -205,45 +205,47 @@ const AddRestaurant = ({ onAdd, onCancel, types, cities, addType, editType, dele
         <Button onClick={handleSubmit}>{initialData ? 'Update' : 'Add'} Restaurant</Button>
       </div>
 
-      <SimpleDialog
-        isOpen={isAddTypeDialogOpen}
-        onClose={() => setIsAddTypeDialogOpen(false)}
-        title="Add New Type"
-      >
-        <div className="space-y-4">
-          <Label htmlFor="newTypeName">Type Name</Label>
-          <Input
-            id="newTypeName"
-            value={newTypeName}
-            onChange={(e) => setNewTypeName(e.target.value)}
-            placeholder="Enter new type name"
-          />
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsAddTypeDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddType}>Add Type</Button>
+      <Dialog open={isAddTypeDialogOpen} onOpenChange={() => setIsAddTypeDialogOpen(false)}>
+        <DialogContent aria-describedby="">
+          <DialogHeader>
+            <DialogTitle>Add New Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="newTypeName">Type Name</Label>
+            <Input
+              id="newTypeName"
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              placeholder="Enter new type name"
+            />
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsAddTypeDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddType}>Add Type</Button>
+            </div>
           </div>
-        </div>
-      </SimpleDialog>
+        </DialogContent>
+      </Dialog>
 
-      <SimpleDialog
-        isOpen={isAddCityDialogOpen}
-        onClose={() => setIsAddCityDialogOpen(false)}
-        title="Add New City"
-      >
-        <div className="space-y-4">
-          <Label htmlFor="newCityName">City Name</Label>
-          <Input
-            id="newCityName"
-            value={newCityName}
-            onChange={(e) => setNewCityName(e.target.value)}
-            placeholder="Enter new city name"
-          />
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsAddCityDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddCity}>Add City</Button>
+      <Dialog open={isAddCityDialogOpen} onOpenChange={() => setIsAddCityDialogOpen(false)}>
+        <DialogContent aria-describedby="">
+          <DialogHeader>
+            <DialogTitle>Add New City</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="newCityName">City Name</Label>
+            <Input
+              id="newCityName"
+              value={newCityName}
+              onChange={(e) => setNewCityName(e.target.value)}
+              placeholder="Enter new city name"
+            />
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsAddCityDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddCity}>Add City</Button>
+            </div>
           </div>
-        </div>
-      </SimpleDialog>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
