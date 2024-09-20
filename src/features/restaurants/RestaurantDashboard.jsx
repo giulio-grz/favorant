@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getCurrentUser, getProfile, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
+import { supabase, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
 import UserSearch from '../../components/UserSearch';
 import UserMenu from '../../components/UserMenu';
 import { useRestaurants } from './hooks/useRestaurants';
@@ -49,7 +49,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
     fetchRestaurants, 
     totalCount,
     loadMore: loadMoreRestaurants
-  } = useRestaurants(viewingUserId, filters, sortOption);
+  } = useRestaurants(user.id, viewingUserId, filters, sortOption);
 
   // Effect to fetch profile and restaurants when viewing user changes
   useEffect(() => {
@@ -142,6 +142,10 @@ const RestaurantDashboard = ({ user, setUser }) => {
           r.id === restaurantId ? { ...r, isLiked: true } : r
         )
       );
+      if (viewingUserId !== user.id) {
+        // Refetch restaurants when liking on another user's profile
+        fetchRestaurants();
+      }
     } catch (error) {
       console.error('Failed to like restaurant:', error);
       alert(`Failed to like restaurant: ${error.message}`);
@@ -153,8 +157,16 @@ const RestaurantDashboard = ({ user, setUser }) => {
     try {
       await unlikeRestaurant(user.id, restaurantId);
       setRestaurants(prevRestaurants => 
-        prevRestaurants.filter(r => r.id !== restaurantId || r.user_id === user.id)
+        prevRestaurants.map(r => 
+          r.id === restaurantId ? { ...r, isLiked: false } : r
+        )
       );
+      if (viewingUserId === user.id) {
+        // Remove unliked restaurant from the list if it's not owned
+        setRestaurants(prevRestaurants => 
+          prevRestaurants.filter(r => r.id !== restaurantId || r.isOwned)
+        );
+      }
     } catch (error) {
       console.error('Failed to unlike restaurant:', error);
       alert(`Failed to unlike restaurant: ${error.message}`);
@@ -197,7 +209,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
                 className="flex items-center"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                Back to My Favorants
               </Button>
             )}
             <MobileMenu 
