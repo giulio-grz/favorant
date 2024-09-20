@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getCurrentUser, getProfile, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
 import UserSearch from '../../components/UserSearch';
 import UserMenu from '../../components/UserMenu';
@@ -15,10 +15,12 @@ import { PlusCircle, Filter, ArrowLeft } from 'lucide-react';
 import MobileMenu from './MobileMenu';
 
 const RestaurantDashboard = ({ user, setUser }) => {
+  // State for managing the viewed user and their profile
   const [viewingUserId, setViewingUserId] = useState(user?.id);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [searchedUser, setSearchedUser] = useState(null);
-  const [page, setPage] = useState(1);
+
+  // State for filters and sorting
   const [filters, setFilters] = useState({
     name: '',
     type_id: null,
@@ -28,12 +30,15 @@ const RestaurantDashboard = ({ user, setUser }) => {
     price: null
   });
   const [sortOption, setSortOption] = useState('dateAdded');
+
+  // State for managing dialogs
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [restaurantToEdit, setRestaurantToEdit] = useState(null);
   
+  // Custom hooks
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
   const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
   const { 
@@ -42,10 +47,11 @@ const RestaurantDashboard = ({ user, setUser }) => {
     loading, 
     error, 
     fetchRestaurants, 
-    totalCount, 
-    loadMore 
-  } = useRestaurants(viewingUserId, page, filters, sortOption);
+    totalCount,
+    loadMore: loadMoreRestaurants
+  } = useRestaurants(viewingUserId, filters, sortOption);
 
+  // Effect to fetch profile and restaurants when viewing user changes
   useEffect(() => {
     if (viewingUserId) {
       const fetchProfile = async () => {
@@ -61,16 +67,18 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   }, [viewingUserId, fetchRestaurants]);
 
+  // Handler for selecting a user to view
   const handleUserSelect = (selectedUser) => {
     setSearchedUser(selectedUser);
     setViewingUserId(selectedUser.id);
-    setPage(1);
   };
 
+  // Handler for clicking on a restaurant
   const handleRestaurantClick = (restaurant) => {
     setSelectedRestaurant(restaurant);
   };
 
+  // Handler for adding a new restaurant
   const handleAddRestaurant = async (newRestaurant) => {
     try {
       const addedRestaurant = await addRestaurant({ ...newRestaurant, user_id: user.id });
@@ -82,11 +90,13 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   };
 
+  // Handler for clicking edit on a restaurant
   const handleEditClick = (restaurant) => {
     setRestaurantToEdit(restaurant);
     setIsEditDialogOpen(true);
   };
 
+  // Handler for updating a restaurant
   const handleUpdateRestaurant = async (updatedRestaurant) => {
     try {
       const { id, city_id, type_id, cities, restaurant_types, ...rest } = updatedRestaurant;
@@ -111,6 +121,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   };
 
+  // Handler for deleting a restaurant
   const handleDeleteRestaurant = async (id) => {
     try {
       await deleteRestaurant(id);
@@ -122,6 +133,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   };
 
+  // Handler for liking a restaurant
   const handleLike = async (restaurantId) => {
     try {
       await likeRestaurant(user.id, restaurantId);
@@ -136,28 +148,38 @@ const RestaurantDashboard = ({ user, setUser }) => {
     }
   };
 
+  // Handler for unliking a restaurant
   const handleUnlike = async (restaurantId) => {
     try {
       await unlikeRestaurant(user.id, restaurantId);
       setRestaurants(prevRestaurants => 
         prevRestaurants.filter(r => r.id !== restaurantId || r.user_id === user.id)
       );
-      setTotalCount(prevCount => prevCount - 1);
     } catch (error) {
       console.error('Failed to unlike restaurant:', error);
       alert(`Failed to unlike restaurant: ${error.message}`);
     }
   };
 
+  // Memoized loadMore function
+  const handleLoadMore = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Load More button clicked');
+    loadMoreRestaurants();
+  }, [loadMoreRestaurants]);
+
+  // Calculate the number of active filters
   const activeFilterCount = Object.values(filters).filter(value => 
     value !== null && value !== '' && value !== 0 && value !== false
   ).length;
 
-  if (loading) return <div>Loading...</div>;
+  if (loading && restaurants.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="max-w-4xl mx-auto p-4">
+      {/* Header section */}
       <div className="mt-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">
@@ -191,6 +213,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
         </div>
       </div>
       
+      {/* Restaurant list section */}
       <div className="mt-8">
         <div className="grid grid-cols-1 gap-4">
           {restaurants.map((restaurant) => (
@@ -206,10 +229,19 @@ const RestaurantDashboard = ({ user, setUser }) => {
         </div>
       </div>
       
-      {restaurants.length < totalCount && (
-        <Button onClick={loadMore} className="mt-6 w-full">Load More</Button>
+      {/* Load more button */}
+      {totalCount > restaurants.length && (
+        <Button 
+          onClick={handleLoadMore}
+          className="mt-6 w-full" 
+          disabled={loading}
+          type="button"
+        >
+          {loading ? 'Loading...' : 'Load More'}
+        </Button>
       )}
       
+      {/* Restaurant detail dialog */}
       <Dialog open={!!selectedRestaurant} onOpenChange={() => setSelectedRestaurant(null)}>
         <DialogContent>
           <DialogHeader>
@@ -225,6 +257,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
         </DialogContent>
       </Dialog>
       
+      {/* Add restaurant dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -246,6 +279,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
         </DialogContent>
       </Dialog>
       
+      {/* Edit restaurant dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -267,6 +301,7 @@ const RestaurantDashboard = ({ user, setUser }) => {
         </DialogContent>
       </Dialog>
       
+      {/* Filter dialog */}
       <RestaurantFilter
         isOpen={isFilterDialogOpen}
         onClose={() => setIsFilterDialogOpen(false)}

@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, getLikedRestaurants } from '../../../supabaseClient';
 
-export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dateAdded') => {
+export const useRestaurants = (userId, filters = {}, sortOption = 'dateAdded') => {
+  // State variables
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
-  const perPage = 10;
+  const perPage = 30;
 
+  // Fetch restaurants based on current filters and sort option
   const fetchRestaurants = useCallback(async () => {
+    console.log('fetchRestaurants called');
     if (!userId) return;
     try {
       setLoading(true);
@@ -47,7 +50,7 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       }
 
       // Apply pagination
-      query = query.range((page - 1) * perPage, page * perPage - 1);
+      query = query.range(0, perPage - 1);
 
       const { data: ownedRestaurants, error: ownedError, count } = await query;
 
@@ -60,24 +63,37 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       const allRestaurants = [
         ...ownedRestaurants.map(r => ({ ...r, isOwned: true })),
         ...likedRestaurants.filter(lr => !ownedRestaurants.some(or => or.id === lr.id))
-      ];
+      ].slice(0, perPage);
 
       setRestaurants(allRestaurants);
       setTotalCount(count + likedRestaurants.length);
+      console.log('Fetched restaurants:', allRestaurants.length);
     } catch (error) {
+      console.error('Error fetching restaurants:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [userId, page, filters, sortOption]);
+  }, [userId, filters, sortOption]);
 
+  // Effect to fetch restaurants when dependencies change
   useEffect(() => {
     fetchRestaurants();
   }, [fetchRestaurants]);
 
-  const loadMore = async () => {
-    const nextPage = Math.floor(restaurants.length / perPage) + 1;
+  // Load more restaurants
+  const loadMore = useCallback(async () => {
+    console.log('loadMore function called');
+    if (loading) {
+      console.log('Loading is true, returning early');
+      return;
+    }
+    
+    setLoading(true);
     try {
+      const currentCount = restaurants.length;
+      console.log('Current restaurant count:', currentCount);
+      
       let query = supabase
         .from('restaurants')
         .select(`
@@ -113,7 +129,7 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       }
 
       // Apply pagination
-      query = query.range(nextPage * perPage, (nextPage + 1) * perPage - 1);
+      query = query.range(currentCount, currentCount + perPage - 1);
 
       const { data, error } = await query;
 
@@ -122,23 +138,34 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
       // Fetch liked status for new restaurants
       const newRestaurantsWithLikedStatus = await Promise.all(
         data.map(async (restaurant) => {
-          const { data: likedData } = await supabase
+          const { data: likedData, error: likedError } = await supabase
             .from('liked_restaurants')
             .select('*')
             .eq('user_id', userId)
             .eq('restaurant_id', restaurant.id)
-            .single();
+            .maybeSingle();
 
-          return { ...restaurant, isLiked: !!likedData };
+          if (likedError && likedError.code !== 'PGRST116') {
+            console.error('Error fetching liked status:', likedError);
+            return { ...restaurant, isLiked: false, isOwned: true };
+          }
+
+          return { ...restaurant, isLiked: !!likedData, isOwned: true };
         })
       );
 
+      console.log('New restaurants fetched:', newRestaurantsWithLikedStatus.length);
       setRestaurants(prevRestaurants => [...prevRestaurants, ...newRestaurantsWithLikedStatus]);
     } catch (error) {
+      console.error('Load more error:', error);
       setError(error.message);
+    } finally {
+      console.log('loadMore completed, setting loading to false');
+      setLoading(false);
     }
-  };
+  }, [loading, restaurants.length, userId, filters, sortOption, perPage]);
 
+  // Return the state and functions
   return { 
     restaurants, 
     setRestaurants,
@@ -146,6 +173,7 @@ export const useRestaurants = (userId, page = 1, filters = {}, sortOption = 'dat
     error, 
     fetchRestaurants,
     totalCount,
+    setTotalCount,
     loadMore
   };
 };
