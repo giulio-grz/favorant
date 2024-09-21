@@ -1,24 +1,37 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { getProfile, likeRestaurant, unlikeRestaurant } from '../../supabaseClient';
-import UserSearch from '../../components/UserSearch';
-import UserMenu from '../../components/UserMenu';
 import { useRestaurants } from './hooks/useRestaurants';
 import { Button } from '../../components/ui/button';
-import RestaurantCard from './components/RestaurantCard';
-import RestaurantPopup from './components/RestaurantPopup';
-import AddRestaurant from './components/AddRestaurant';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import RestaurantList from './components/RestaurantList';
+import RestaurantDetails from './components/RestaurantDetails';
+import AddEditRestaurant from './components/AddEditRestaurant';
 import RestaurantFilter from './components/RestaurantFilter';
 import { useTypesAndCities } from './hooks/useTypesAndCities';
 import { useRestaurantOperations } from './hooks/useRestaurantOperations';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
-import { PlusCircle, Filter, ArrowLeft } from 'lucide-react';
 import MobileMenu from './MobileMenu';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import ErrorMessage from '../../components/ErrorMessage';
+import { ArrowLeft } from 'lucide-react';
 
+/**
+ * RestaurantDashboard Component
+ * 
+ * This is the main component for the restaurant dashboard. It handles the overall
+ * state management and routing for the restaurant-related features.
+ * 
+ * @param {Object} props
+ * @param {Object} props.user - The current user object
+ * @param {Function} props.setUser - Function to update the user state
+ */
 const RestaurantDashboard = ({ user, setUser }) => {
-  // State for managing the viewed user and their profile
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // State for managing the viewed user
   const [viewingUserId, setViewingUserId] = useState(user?.id);
   const [viewingProfile, setViewingProfile] = useState(null);
-  const [searchedUser, setSearchedUser] = useState(null);
 
   // State for filters and sorting
   const [filters, setFilters] = useState({
@@ -31,16 +44,14 @@ const RestaurantDashboard = ({ user, setUser }) => {
   });
   const [sortOption, setSortOption] = useState('dateAdded');
 
-  // State for managing dialogs
-  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  const [restaurantToEdit, setRestaurantToEdit] = useState(null);
-  
-  // Custom hooks
+  // State for managing tabs
+  const [activeTab, setActiveTab] = useState('myRestaurants');
+
+  // Custom hooks for managing types, cities, and restaurant operations
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
   const { addRestaurant, updateRestaurant, deleteRestaurant } = useRestaurantOperations();
+  
+  // Custom hook for fetching and managing restaurants
   const { 
     restaurants, 
     setRestaurants,
@@ -49,9 +60,9 @@ const RestaurantDashboard = ({ user, setUser }) => {
     fetchRestaurants, 
     totalCount,
     loadMore: loadMoreRestaurants
-  } = useRestaurants(user.id, viewingUserId, filters, sortOption);
+  } = useRestaurants(user.id, viewingUserId, filters, sortOption, activeTab);
 
-  // Effect to fetch profile and restaurants when viewing user changes
+  // Effect to fetch the profile when the viewing user changes
   useEffect(() => {
     if (viewingUserId) {
       const fetchProfile = async () => {
@@ -63,81 +74,53 @@ const RestaurantDashboard = ({ user, setUser }) => {
         }
       };
       fetchProfile();
-      fetchRestaurants();
     }
-  }, [viewingUserId, fetchRestaurants]);
+  }, [viewingUserId]);
 
-  // Handler for selecting a user to view
-  const handleUserSelect = (selectedUser) => {
-    setSearchedUser(selectedUser);
+  // Effect to fetch restaurants when relevant parameters change
+  useEffect(() => {
+    fetchRestaurants();
+  }, [fetchRestaurants, activeTab, viewingUserId]);
+
+  /**
+   * Handles the selection of a user from the search results
+   * @param {Object} selectedUser - The selected user object
+   */
+  const handleUserSelect = useCallback((selectedUser) => {
     setViewingUserId(selectedUser.id);
-  };
+    setViewingProfile(selectedUser);
+    setActiveTab('myRestaurants');
+    navigate('/');
+  }, [navigate]);
 
-  // Handler for clicking on a restaurant
-  const handleRestaurantClick = (restaurant) => {
-    setSelectedRestaurant(restaurant);
-  };
+  /**
+   * Handles loading more restaurants
+   * @param {Event} e - The event object
+   */
+  const handleLoadMore = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    loadMoreRestaurants();
+  }, [loadMoreRestaurants]);
 
-  // Handler for adding a new restaurant
-  const handleAddRestaurant = async (newRestaurant) => {
-    try {
-      const addedRestaurant = await addRestaurant({ ...newRestaurant, user_id: user.id });
-      setRestaurants(prevRestaurants => [addedRestaurant, ...prevRestaurants]);
-      setIsAddDialogOpen(false);
-    } catch (error) {
-      console.error('Failed to add restaurant:', error);
-      alert(`Failed to add restaurant: ${error.message}`);
-    }
-  };
-
-  // Handler for clicking edit on a restaurant
-  const handleEditClick = (restaurant) => {
-    if (restaurant.user_id === user.id) {
-      setRestaurantToEdit(restaurant);
-      setIsEditDialogOpen(true);
+  /**
+   * Handles navigation back to the previous page or to the main dashboard
+   */
+  const handleBack = useCallback(() => {
+    if (viewingUserId !== user.id) {
+      setViewingUserId(user.id);
+      setViewingProfile(null);
+      setActiveTab('myRestaurants');
+      navigate('/');
     } else {
-      alert("You can't edit a restaurant you don't own.");
+      navigate(-1);
     }
-  };
+  }, [navigate, viewingUserId, user.id]);
 
-  // Handler for updating a restaurant
-  const handleUpdateRestaurant = async (updatedRestaurant) => {
-    try {
-      const { id, city_id, type_id, cities, restaurant_types, ...rest } = updatedRestaurant;
-      
-      if (!id) {
-        throw new Error("Restaurant ID is missing");
-      }
-
-      const updateData = {
-        ...rest,
-        city_id: typeof city_id === 'object' ? city_id.id : city_id,
-        type_id: typeof type_id === 'object' ? type_id.id : type_id
-      };
-
-      await updateRestaurant(id, updateData);
-      fetchRestaurants();
-      setIsEditDialogOpen(false);
-      setSelectedRestaurant(null);
-    } catch (error) {
-      console.error('Failed to update restaurant:', error);
-      alert(`Failed to update restaurant: ${error.message}`);
-    }
-  };
-
-  // Handler for deleting a restaurant
-  const handleDeleteRestaurant = async (id) => {
-    try {
-      await deleteRestaurant(id);
-      fetchRestaurants();
-      setSelectedRestaurant(null);
-    } catch (error) {
-      console.error('Failed to delete restaurant:', error);
-      alert(`Failed to delete restaurant: ${error.message}`);
-    }
-  };
-
-  // Handler for liking a restaurant
+  /**
+   * Handles liking a restaurant
+   * @param {string} restaurantId - The ID of the restaurant to like
+   */
   const handleLike = async (restaurantId) => {
     try {
       await likeRestaurant(user.id, restaurantId);
@@ -146,17 +129,16 @@ const RestaurantDashboard = ({ user, setUser }) => {
           r.id === restaurantId ? { ...r, isLiked: true } : r
         )
       );
-      if (viewingUserId !== user.id) {
-        // Refetch restaurants when liking on another user's profile
-        fetchRestaurants();
-      }
     } catch (error) {
       console.error('Failed to like restaurant:', error);
-      alert(`Failed to like restaurant: ${error.message}`);
+      alert('Failed to like restaurant: ' + error.message);
     }
   };
 
-  // Handler for unliking a restaurant
+  /**
+   * Handles unliking a restaurant
+   * @param {string} restaurantId - The ID of the restaurant to unlike
+   */
   const handleUnlike = async (restaurantId) => {
     try {
       await unlikeRestaurant(user.id, restaurantId);
@@ -165,169 +147,171 @@ const RestaurantDashboard = ({ user, setUser }) => {
           r.id === restaurantId ? { ...r, isLiked: false } : r
         )
       );
-      if (viewingUserId === user.id) {
-        // Remove unliked restaurant from the list if it's not owned
+      if (activeTab === 'likedRestaurants') {
         setRestaurants(prevRestaurants => 
-          prevRestaurants.filter(r => r.id !== restaurantId || r.isOwned)
+          prevRestaurants.filter(r => r.id !== restaurantId)
         );
       }
     } catch (error) {
       console.error('Failed to unlike restaurant:', error);
-      alert(`Failed to unlike restaurant: ${error.message}`);
+      alert('Failed to unlike restaurant: ' + error.message);
     }
   };
 
-  // Memoized loadMore function
-  const handleLoadMore = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Load More button clicked');
-    loadMoreRestaurants();
-  }, [loadMoreRestaurants]);
+  /**
+   * BackButton Component
+   * Renders a back button that uses the handleBack function
+   */
+  const BackButton = () => (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleBack}
+      className="mb-0"
+    >
+      <ArrowLeft className="mr-2 h-4 w-4" />
+      Back
+    </Button>
+  );
 
-  // Calculate the number of active filters
-  const activeFilterCount = Object.values(filters).filter(value => 
-    value !== null && value !== '' && value !== 0 && value !== false
-  ).length;
-
-  if (loading && restaurants.length === 0) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  // Show loading spinner when loading and no restaurants are available
+  if (loading && restaurants.length === 0) return <LoadingSpinner />;
+  // Show error message if there's an error
+  if (error) return <ErrorMessage message={error} />;
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      {/* Header section */}
       <div className="mt-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">
-            {searchedUser ? `${searchedUser.username}'s Favorants` : 'My Favorants'}
-          </h1>
-          <div className="flex items-center space-x-2">
-            {searchedUser && (
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearchedUser(null);
-                  setViewingUserId(user.id);
-                }}
-                className="flex items-center"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to My Favorants
-              </Button>
-            )}
-            <MobileMenu 
-              onAddClick={() => setIsAddDialogOpen(true)}
-              onFilterClick={() => setIsFilterDialogOpen(true)}
-              onUserSelect={handleUserSelect}
-              currentUserId={user.id}
-              user={user}
-              setUser={setUser}
-              canAdd={user.id === viewingUserId}
-            />
-          </div>
-        </div>
-      </div>
-      
-      {/* Restaurant list section */}
-      <div className="mt-8">
-        <div className="grid grid-cols-1 gap-4">
-          {restaurants.map((restaurant) => (
-            <RestaurantCard 
-              key={restaurant.id} 
-              restaurant={restaurant} 
-              onClick={() => handleRestaurantClick(restaurant)}
-              onLike={handleLike}
-              onUnlike={handleUnlike}
-              currentUserId={user.id}
-            />
-          ))}
-        </div>
-      </div>
-      
-      {/* Load more button */}
-      {totalCount > restaurants.length && (
-        <Button 
-          onClick={handleLoadMore}
-          className="mt-6 w-full" 
-          disabled={loading}
-          type="button"
-        >
-          {loading ? 'Loading...' : 'Load More'}
-        </Button>
-      )}
-      
-      {/* Restaurant detail dialog */}
-      <Dialog open={!!selectedRestaurant} onOpenChange={() => setSelectedRestaurant(null)}>
-        <DialogContent aria-describedby="">
-          <DialogHeader>
-            <DialogTitle>{selectedRestaurant?.name}</DialogTitle>
-          </DialogHeader>
-          <RestaurantPopup
-            restaurant={selectedRestaurant}
-            onClose={() => setSelectedRestaurant(null)}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteRestaurant}
+          {location.pathname === '/' && viewingUserId === user.id ? (
+            <h1 className="text-lg font-bold">{viewingProfile.username}'s Favorants</h1>
+          ) : (
+            <div className="flex items-center">
+              <BackButton />
+              {viewingProfile && location.pathname === '/' && (
+                <h1 className="text-lg font-bold ml-4">{viewingProfile.username}'s Favorants</h1>
+              )}
+            </div>
+          )}
+          <MobileMenu 
+            onAddClick={() => navigate('/add')}
+            onFilterClick={() => navigate('/filter')}
+            onUserSelect={handleUserSelect}
             currentUserId={user.id}
+            user={user}
+            setUser={setUser}
+            canAdd={user.id === viewingUserId}
           />
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
       
-      {/* Add restaurant dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent aria-describedby="">
-          <DialogHeader>
-            <DialogTitle>Add New Favorant</DialogTitle>
-            <DialogDescription>Enter the details for your new favorite restaurant.</DialogDescription>
-          </DialogHeader>
-          <AddRestaurant
-            onAdd={handleAddRestaurant}
-            onCancel={() => setIsAddDialogOpen(false)}
-            types={types}
-            cities={cities}
-            addType={addType}
-            editType={editType}
-            deleteType={deleteType}
-            addCity={addCity}
-            editCity={editCity}
-            deleteCity={deleteCity}
-          />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Edit restaurant dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent aria-describedby="">
-          <DialogHeader>
-            <DialogTitle>Edit Favorant</DialogTitle>
-          </DialogHeader>
-          <AddRestaurant
-            onAdd={handleUpdateRestaurant}
-            onCancel={() => setIsEditDialogOpen(false)}
-            types={types}
-            cities={cities}
-            addType={addType}
-            editType={editType}
-            deleteType={deleteType}
-            addCity={addCity}
-            editCity={editCity}
-            deleteCity={deleteCity}
-            initialData={restaurantToEdit}
-          />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Filter dialog */}
-      <RestaurantFilter
-        isOpen={isFilterDialogOpen}
-        onClose={() => setIsFilterDialogOpen(false)}
-        types={types}
-        cities={cities}
-        filters={filters}
-        setFilters={setFilters}
-        sortOption={sortOption}
-        setSortOption={setSortOption}
-      />
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            viewingUserId === user.id ? (
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList>
+                  <TabsTrigger value="myRestaurants">My Restaurants</TabsTrigger>
+                  <TabsTrigger value="likedRestaurants">Liked Restaurants</TabsTrigger>
+                </TabsList>
+                <TabsContent value="myRestaurants">
+                  <RestaurantList 
+                    restaurants={restaurants}
+                    onLoadMore={handleLoadMore}
+                    totalCount={totalCount}
+                    loading={loading}
+                    currentUserId={user.id}
+                    onLike={handleLike}
+                    onUnlike={handleUnlike}
+                  />
+                </TabsContent>
+                <TabsContent value="likedRestaurants">
+                  <RestaurantList 
+                    restaurants={restaurants}
+                    onLoadMore={handleLoadMore}
+                    totalCount={totalCount}
+                    loading={loading}
+                    currentUserId={user.id}
+                    onLike={handleLike}
+                    onUnlike={handleUnlike}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <RestaurantList 
+                restaurants={restaurants}
+                onLoadMore={handleLoadMore}
+                totalCount={totalCount}
+                loading={loading}
+                currentUserId={user.id}
+                onLike={handleLike}
+                onUnlike={handleUnlike}
+              />
+            )
+          } 
+        />
+        <Route 
+          path="/restaurant/:id" 
+          element={
+            <RestaurantDetails 
+              restaurants={restaurants}
+              onEdit={(restaurant) => navigate(`/edit/${restaurant.id}`)}
+              onDelete={deleteRestaurant}
+              currentUserId={user.id}
+            />
+          } 
+        />
+        <Route 
+          path="/add" 
+          element={
+            <AddEditRestaurant
+              onSave={addRestaurant}
+              types={types}
+              cities={cities}
+              addType={addType}
+              editType={editType}
+              deleteType={deleteType}
+              addCity={addCity}
+              editCity={editCity}
+              deleteCity={deleteCity}
+              userId={user.id}
+            />
+          } 
+        />
+        <Route 
+          path="/edit/:id" 
+          element={
+            <AddEditRestaurant
+              onSave={updateRestaurant}
+              types={types}
+              cities={cities}
+              addType={addType}
+              editType={editType}
+              deleteType={deleteType}
+              addCity={addCity}
+              editCity={editCity}
+              deleteCity={deleteCity}
+              userId={user.id}
+              restaurants={restaurants}
+            />
+          } 
+        />
+        <Route 
+          path="/filter" 
+          element={
+            <RestaurantFilter
+              types={types}
+              cities={cities}
+              filters={filters}
+              setFilters={setFilters}
+              sortOption={sortOption}
+              setSortOption={setSortOption}
+              onApply={() => navigate('/')}
+            />
+          } 
+        />
+      </Routes>
     </div>
   );
 };
