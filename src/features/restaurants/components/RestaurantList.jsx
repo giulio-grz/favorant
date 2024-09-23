@@ -1,113 +1,81 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Card, CardContent } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import { Star, Heart } from 'lucide-react';
+import { Badge } from '../../../components/ui/badge';
 
-/**
- * RestaurantList Component
- * 
- * Displays a list of restaurants with basic information and navigation to details
- * 
- * @param {Object} props
- * @param {Array} props.restaurants - Array of restaurant objects to display
- * @param {Function} props.onLoadMore - Function to call when loading more restaurants
- * @param {number} props.totalCount - Total number of restaurants available
- * @param {boolean} props.loading - Whether the component is in a loading state
- * @param {string} props.currentUserId - ID of the current user
- * @param {Function} props.onLike - Function to call when liking a restaurant
- * @param {Function} props.onUnlike - Function to call when unliking a restaurant
- */
-const RestaurantList = ({ restaurants, onLoadMore, totalCount, loading, currentUserId, onLike, onUnlike }) => {
+const RestaurantList = ({ 
+  restaurants, 
+  onLoadMore, 
+  totalCount, 
+  loading, 
+  currentUserId, 
+  onLike,
+  onUnlike,
+  onRestaurantClick
+}) => {
+  const getInitials = (name) => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   const PriceDisplay = ({ price }) => (
-    <div className="inline-flex text-sm">
-      <span className="text-black">€</span>
-      <span className={price >= 2 ? "text-black" : "text-gray-300"}>€</span>
-      <span className={price >= 3 ? "text-black" : "text-gray-300"}>€</span>
-    </div>
+    <span className="text-sm font-medium ml-2">
+      {[1, 2, 3].map((value) => (
+        <span 
+          key={value} 
+          className={value <= price ? 'text-black' : 'text-gray-300'}
+        >
+          €
+        </span>
+      ))}
+    </span>
   );
-
-  const renderStars = (rating) => {
-    const starCount = Math.round((rating / 10) * 5);
-    return (
-      <div className="flex">
-        {[...Array(5)].map((_, index) => (
-          <Star
-            key={index}
-            size={16}
-            className={index < starCount ? "text-yellow-400 fill-current" : "text-gray-200"}
-          />
-        ))}
-      </div>
-    );
-  };
-
-  const handleLikeClick = (e, restaurant) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (restaurant.isLiked) {
-      onUnlike(restaurant.id);
-    } else {
-      onLike(restaurant.id);
-    }
-  };
 
   return (
     <div className="space-y-4">
       {restaurants.map((restaurant) => (
         <motion.div
           key={restaurant.id}
-          initial={{ opacity: 0, y: 50 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
+          exit={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.3 }}
+          onClick={() => onRestaurantClick(restaurant.id)}
+          className="flex items-center p-2 hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
         >
-          <Link to={`/restaurant/${restaurant.id}`}>
-            <Card className={`mb-4 overflow-hidden hover:shadow-md transition-shadow duration-300 cursor-pointer w-full ${restaurant.isLiked ? 'border-primary' : ''}`}>
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center">
-                    <h3 className="text-lg font-semibold">{restaurant.name}</h3>
-                    {restaurant.user_id !== currentUserId && (
-                      <Heart 
-                        className={`ml-2 cursor-pointer w-4 h-4 ${
-                          restaurant.isLiked ? "text-red-500 fill-current" : "text-gray-300"
-                        }`}
-                        onClick={(e) => handleLikeClick(e, restaurant)}
-                      />
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end">
-                    {restaurant.to_try ? (
-                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                        To Try
-                      </span>
-                    ) : (
-                      renderStars(restaurant.rating)
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-sm text-gray-600 mt-2">
-                  <div className="flex items-center">
-                    <span className="mr-2">{restaurant.restaurant_types?.name}</span>
-                    <span>{restaurant.cities?.name}</span>
-                  </div>
-                  <PriceDisplay price={restaurant.price} />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+          <div className="h-12 w-12 mr-4 bg-gray-200 rounded-md flex items-center justify-center text-lg font-bold">
+            {getInitials(restaurant.name)}
+          </div>
+          <div className="flex-grow">
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+              <PriceDisplay price={restaurant.price} />
+            </div>
+            <p className="text-sm font-medium">{restaurant.restaurant_types?.name}</p>
+            <p className="text-sm text-gray-600">{restaurant.cities?.name}</p>
+          </div>
+          <div className="flex-shrink-0 ml-4 text-right">
+            {restaurant.to_try ? (
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">To Try</Badge>
+            ) : restaurant.rating ? (
+              <div className="text-lg font-bold">{restaurant.rating.toFixed(1)}</div>
+            ) : (
+              <span className="text-sm text-gray-500">No reviews</span>
+            )}
+          </div>
         </motion.div>
       ))}
       {totalCount > restaurants.length && (
-        <Button 
+        <button 
           onClick={onLoadMore}
-          className="w-full" 
+          className="w-full mt-4 py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors duration-200"
           disabled={loading}
         >
           {loading ? 'Loading...' : 'Load More'}
-        </Button>
+        </button>
       )}
     </div>
   );
