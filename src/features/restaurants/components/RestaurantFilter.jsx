@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
@@ -6,43 +6,82 @@ import { Input } from '../../../components/ui/input';
 import { Slider } from '../../../components/ui/slider';
 import { Switch } from "../../../components/ui/switch";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../components/ui/accordion';
+import { Badge } from '../../../components/ui/badge';
+import { X } from 'lucide-react';
 
-/**
- * RestaurantFilter component
- * Allows users to filter and sort the restaurant list
- */
-const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setSortOption, onApply }) => {
+const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setSortOption, onApplyFilters }) => {
   const navigate = useNavigate();
 
-  const clearFilters = () => {
-    setFilters({
-      name: '',
-      type_id: null,
-      city_id: null,
-      toTry: null,
-      rating: 0,
-      price: null
-    });
-    setSortOption('dateAdded');
-  };
+  const activeFilterCount = useMemo(() => {
+    return Object.values(filters).filter(value => 
+      value !== null && value !== '' && value !== false && value !== 0
+    ).length + (sortOption !== 'dateAdded' ? 1 : 0);
+  }, [filters, sortOption]);
 
   const handleApply = () => {
-    onApply();
+    onApplyFilters(filters, sortOption);
     navigate('/');
+  };
+
+  const removeFilter = (key) => {
+    setFilters(prev => ({ ...prev, [key]: null }));
+  };
+
+  const getFilterLabel = (key, value) => {
+    switch (key) {
+      case 'name':
+        return `Name: ${value}`;
+      case 'type_id':
+        return `Type: ${types.find(t => t.id === value)?.name}`;
+      case 'city_id':
+        return `City: ${cities.find(c => c.id === value)?.name}`;
+      case 'toTry':
+        return 'To Try';
+      case 'rating':
+        return `Rating: >${value}`;
+      case 'price':
+        return `Price: ${'€'.repeat(value)}`;
+      default:
+        return '';
+    }
   };
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto p-4">
-      <h2 className="text-2xl font-bold">Filter & Sort Favorants</h2>
+      <h2 className="text-2xl font-bold">Filter & Sort Restaurants</h2>
       
-      <div className="space-y-4">
-        <Label htmlFor="nameFilter">Name</Label>
-        <Input
-          id="nameFilter"
-          value={filters.name}
-          onChange={(e) => setFilters({ ...filters, name: e.target.value })}
-          placeholder="Filter by name"
-        />
+      <div className="flex flex-wrap gap-2 mb-4">
+        {Object.entries(filters).map(([key, value]) => {
+          if (value !== null && value !== '' && value !== false && value !== 0) {
+            return (
+              <Badge key={key} variant="secondary" className="flex items-center gap-1">
+                {getFilterLabel(key, value)}
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-auto p-0 text-secondary-foreground"
+                  onClick={() => removeFilter(key)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </Badge>
+            );
+          }
+          return null;
+        })}
+        {sortOption !== 'dateAdded' && (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            Sort: {sortOption}
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              className="h-auto p-0 text-secondary-foreground"
+              onClick={() => setSortOption('dateAdded')}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        )}
       </div>
       
       <Accordion type="single" collapsible className="w-full">
@@ -147,7 +186,17 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       </div>
       
       <div className="flex justify-between mt-6">
-        <Button variant="outline" onClick={clearFilters}>
+        <Button variant="outline" onClick={() => {
+          setFilters({
+            name: '',
+            type_id: null,
+            city_id: null,
+            toTry: null,
+            rating: 0,
+            price: null
+          });
+          setSortOption('dateAdded');
+        }}>
           Clear Filters
         </Button>
         <Button onClick={handleApply}>

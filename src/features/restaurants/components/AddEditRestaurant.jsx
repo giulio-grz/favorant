@@ -8,13 +8,23 @@ import { Slider } from '../../../components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../components/ui/accordion';
 import { Switch } from '../../../components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
-import { ArrowLeft } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../../components/ui/dropdown-menu';
+import { Edit, Trash, MoreVertical } from 'lucide-react';
+import { supabase } from '../../../supabaseClient';
 
-/**
- * AddEditRestaurant component
- * Handles both adding new restaurants and editing existing ones
- */
-const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteType, addCity, editCity, deleteCity, userId, restaurants }) => {
+const AddEditRestaurant = ({ 
+  user,
+  types, 
+  cities, 
+  addType, 
+  editType, 
+  deleteType, 
+  addCity, 
+  editCity, 
+  deleteCity,
+  updateLocalRestaurant,
+  addLocalRestaurant
+}) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
@@ -23,7 +33,7 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
     name: '',
     type_id: null,
     city_id: null,
-    rating: 0,
+    rating: 5,
     price: 1,
     notes: '',
     to_try: false
@@ -31,17 +41,32 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
 
   const [isAddTypeDialogOpen, setIsAddTypeDialogOpen] = useState(false);
   const [isAddCityDialogOpen, setIsAddCityDialogOpen] = useState(false);
+  const [isEditTypeDialogOpen, setIsEditTypeDialogOpen] = useState(false);
+  const [isEditCityDialogOpen, setIsEditCityDialogOpen] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newCityName, setNewCityName] = useState('');
+  const [editingType, setEditingType] = useState(null);
+  const [editingCity, setEditingCity] = useState(null);
 
   useEffect(() => {
     if (isEditing) {
-      const existingRestaurant = restaurants.find(r => r.id.toString() === id);
-      if (existingRestaurant) {
-        setRestaurant(existingRestaurant);
-      }
+      const fetchRestaurant = async () => {
+        const { data, error } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching restaurant:', error);
+        } else if (data) {
+          setRestaurant(data);
+        }
+      };
+
+      fetchRestaurant();
     }
-  }, [id, restaurants, isEditing]);
+  }, [id, isEditing]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -70,11 +95,72 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
     }
   };
 
+  const handleEditType = async () => {
+    if (editingType && newTypeName.trim()) {
+      await editType(editingType.id, newTypeName.trim());
+      setNewTypeName('');
+      setIsEditTypeDialogOpen(false);
+      setEditingType(null);
+    }
+  };
+
+  const handleEditCity = async () => {
+    if (editingCity && newCityName.trim()) {
+      await editCity(editingCity.id, newCityName.trim());
+      setNewCityName('');
+      setIsEditCityDialogOpen(false);
+      setEditingCity(null);
+    }
+  };
+
+  const handleDeleteType = async (typeId) => {
+    if (window.confirm('Are you sure you want to delete this type?')) {
+      await deleteType(typeId);
+      if (restaurant.type_id === typeId) {
+        setRestaurant(prev => ({ ...prev, type_id: null }));
+      }
+    }
+  };
+
+  const handleDeleteCity = async (cityId) => {
+    if (window.confirm('Are you sure you want to delete this city?')) {
+      await deleteCity(cityId);
+      if (restaurant.city_id === cityId) {
+        setRestaurant(prev => ({ ...prev, city_id: null }));
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (restaurant.name && restaurant.type_id && restaurant.city_id) {
       try {
-        await onSave({ ...restaurant, user_id: userId });
+        const restaurantData = { ...restaurant, user_id: user.id };
+        let savedRestaurant;
+
+        if (isEditing) {
+          const { data, error } = await supabase
+            .from('restaurants')
+            .update(restaurantData)
+            .eq('id', id)
+            .select()
+            .single();
+
+          if (error) throw error;
+          savedRestaurant = data;
+          updateLocalRestaurant(savedRestaurant);
+        } else {
+          const { data, error } = await supabase
+            .from('restaurants')
+            .insert([restaurantData])
+            .select()
+            .single();
+
+          if (error) throw error;
+          savedRestaurant = data;
+          addLocalRestaurant(savedRestaurant);
+        }
+
         navigate('/');
       } catch (error) {
         console.error('Error saving restaurant:', error);
@@ -102,14 +188,31 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {types.map((type) => (
-                <Button
-                  key={type.id}
-                  type="button"
-                  variant={restaurant.type_id === type.id ? "default" : "outline"}
-                  onClick={() => setRestaurant(prev => ({ ...prev, type_id: type.id }))}
-                >
-                  {type.name}
-                </Button>
+                <DropdownMenu key={type.id}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={restaurant.type_id === type.id ? "default" : "outline"}
+                      onClick={() => setRestaurant(prev => ({ ...prev, type_id: type.id }))}
+                    >
+                      {type.name}
+                      <MoreVertical className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => {
+                      setEditingType(type);
+                      setNewTypeName(type.name);
+                      setIsEditTypeDialogOpen(true);
+                    }}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDeleteType(type.id)}>
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ))}
               <Button type="button" variant="outline" onClick={() => setIsAddTypeDialogOpen(true)}>
                 + Add New
@@ -125,14 +228,31 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {cities.map((city) => (
-                <Button
-                  key={city.id}
-                  type="button"
-                  variant={restaurant.city_id === city.id ? "default" : "outline"}
-                  onClick={() => setRestaurant(prev => ({ ...prev, city_id: city.id }))}
-                >
-                  {city.name}
-                </Button>
+                <DropdownMenu key={city.id}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={restaurant.city_id === city.id ? "default" : "outline"}
+                      onClick={() => setRestaurant(prev => ({ ...prev, city_id: city.id }))}
+                    >
+                      {city.name}
+                      <MoreVertical className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => {
+                      setEditingCity(city);
+                      setNewCityName(city.name);
+                      setIsEditCityDialogOpen(true);
+                    }}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDeleteCity(city.id)}>
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ))}
               <Button type="button" variant="outline" onClick={() => setIsAddCityDialogOpen(true)}>
                 + Add New
@@ -245,6 +365,56 @@ const AddEditRestaurant = ({ onSave, types, cities, addType, editType, deleteTyp
             </Button>
             <Button type="button" onClick={handleAddCity}>
               Add City
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditTypeDialogOpen} onOpenChange={setIsEditTypeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="editTypeName">Type Name</Label>
+            <Input
+              id="editTypeName"
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              placeholder="Enter type name"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEditTypeDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleEditType}>
+              Update Type
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditCityDialogOpen} onOpenChange={setIsEditCityDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit City</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="editCityName">City Name</Label>
+            <Input
+              id="editCityName"
+              value={newCityName}
+              onChange={(e) => setNewCityName(e.target.value)}
+              placeholder="Enter city name"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEditCityDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleEditCity}>
+              Update City
             </Button>
           </DialogFooter>
         </DialogContent>

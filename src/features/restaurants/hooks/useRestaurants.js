@@ -1,26 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 
-/**
- * Custom hook for managing restaurant data
- * 
- * @param {string} userId - The ID of the current user
- * @param {string} viewingUserId - The ID of the user whose restaurants are being viewed
- * @param {Object} filters - The filters to apply to the restaurant query
- * @param {string} sortOption - The sorting option for the restaurants
- * @param {string} activeTab - The currently active tab ('myRestaurants' or 'likedRestaurants')
- * @returns {Object} An object containing restaurant data and functions to manage it
- */
-export const useRestaurants = (userId, viewingUserId, filters, sortOption, activeTab) => {
+export const useRestaurants = (currentUserId, targetUserId, filters, sortOption, activeTab) => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
 
-  /**
-   * Fetches restaurants based on the current filters, sorting, and active tab
-   */
   const fetchRestaurants = useCallback(async () => {
+    console.log('fetchRestaurants called with:', { currentUserId, targetUserId, filters, sortOption, activeTab });
+    
+    if (!targetUserId) {
+      console.log('No target user ID, skipping fetch');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -29,18 +24,31 @@ export const useRestaurants = (userId, viewingUserId, filters, sortOption, activ
         .from('restaurants')
         .select('*, restaurant_types(*), cities(*)', { count: 'exact' });
 
-      // Adjust query based on active tab
-      if (activeTab === 'myRestaurants') {
-        query = query.eq('user_id', viewingUserId);
-      } else if (activeTab === 'likedRestaurants') {
-        const { data: likedRestaurants } = await supabase
-          .from('liked_restaurants')
-          .select('restaurant_id')
-          .eq('user_id', userId);
+      console.log('Initial query setup complete');
 
-        const likedIds = likedRestaurants.map(lr => lr.restaurant_id);
-        query = query.in('id', likedIds);
+      if (currentUserId === targetUserId) {
+        console.log('Viewing own profile');
+        if (activeTab === 'myRestaurants') {
+          query = query.eq('user_id', currentUserId);
+          console.log('Fetching my restaurants');
+        } else if (activeTab === 'likedRestaurants') {
+          console.log('Fetching liked restaurants');
+          const { data: likedRestaurants } = await supabase
+            .from('liked_restaurants')
+            .select('restaurant_id')
+            .eq('user_id', currentUserId);
+
+          console.log('Liked restaurants:', likedRestaurants);
+
+          const likedIds = likedRestaurants.map(lr => lr.restaurant_id);
+          query = query.in('id', likedIds);
+        }
+      } else {
+        console.log('Viewing another user\'s profile');
+        query = query.eq('user_id', targetUserId);
       }
+
+      console.log('Query after user check');
 
       // Apply filters
       if (filters.name) query = query.ilike('name', `%${filters.name}%`);
@@ -67,81 +75,74 @@ export const useRestaurants = (userId, viewingUserId, filters, sortOption, activ
           query = query.order('created_at', { ascending: false });
       }
 
+      console.log('Final query setup complete');
+
       const { data, error, count } = await query;
 
       if (error) throw error;
 
-      // Fetch liked status for each restaurant
+      console.log('Fetched restaurants:', data);
+
       const { data: likedRestaurants } = await supabase
         .from('liked_restaurants')
         .select('restaurant_id')
-        .eq('user_id', userId);
+        .eq('user_id', currentUserId);
+
+      console.log('Liked restaurants for current user:', likedRestaurants);
 
       const likedIds = new Set(likedRestaurants.map(lr => lr.restaurant_id));
 
-      // Add isLiked property to each restaurant
       const restaurantsWithLikedStatus = data.map(restaurant => ({
         ...restaurant,
         isLiked: likedIds.has(restaurant.id)
       }));
 
+      console.log('Restaurants with liked status:', restaurantsWithLikedStatus);
+
       setRestaurants(restaurantsWithLikedStatus);
       setTotalCount(count);
     } catch (error) {
+      console.error('Error fetching restaurants:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [userId, viewingUserId, filters, sortOption, activeTab]);
-/**
-   * Loads more restaurants when scrolling
-   */
-const loadMore = useCallback(async () => {
-  if (loading || restaurants.length >= totalCount) return;
+  }, [currentUserId, targetUserId, filters, sortOption, activeTab]);
 
-  setLoading(true);
-  try {
-    let query = supabase
-      .from('restaurants')
-      .select('*, restaurant_types(*), cities(*)')
-      .range(restaurants.length, restaurants.length + 9); // Load 10 more restaurants
+  useEffect(() => {
+    console.log('useEffect triggered, calling fetchRestaurants');
+    fetchRestaurants();
+  }, [fetchRestaurants]);
 
-    // Apply the same filters and sorting as in fetchRestaurants
-    // ... (apply filters and sorting logic here, similar to fetchRestaurants)
+  const loadMore = useCallback(async () => {
+    console.log('Load more functionality not yet implemented');
+  }, []);
 
-    const { data, error } = await query;
+  const updateLocalRestaurant = useCallback((updatedRestaurant) => {
+    setRestaurants(prevRestaurants =>
+      prevRestaurants.map(restaurant =>
+        restaurant.id === updatedRestaurant.id ? { ...restaurant, ...updatedRestaurant } : restaurant
+      )
+    );
+  }, []);
 
-    if (error) throw error;
+  const addLocalRestaurant = useCallback((newRestaurant) => {
+    setRestaurants(prevRestaurants => [newRestaurant, ...prevRestaurants]);
+  }, []);
 
-    // Fetch liked status for new restaurants
-    const { data: likedRestaurants } = await supabase
-      .from('liked_restaurants')
-      .select('restaurant_id')
-      .eq('user_id', userId);
+  const deleteLocalRestaurant = useCallback((id) => {
+    setRestaurants(prevRestaurants => prevRestaurants.filter(restaurant => restaurant.id !== id));
+  }, []);
 
-    const likedIds = new Set(likedRestaurants.map(lr => lr.restaurant_id));
-
-    // Add isLiked property to each new restaurant
-    const newRestaurantsWithLikedStatus = data.map(restaurant => ({
-      ...restaurant,
-      isLiked: likedIds.has(restaurant.id)
-    }));
-
-    setRestaurants(prevRestaurants => [...prevRestaurants, ...newRestaurantsWithLikedStatus]);
-  } catch (error) {
-    setError(error.message);
-  } finally {
-    setLoading(false);
-  }
-}, [loading, restaurants, totalCount, userId]);
-
-return { 
-  restaurants, 
-  setRestaurants,
-  loading, 
-  error, 
-  fetchRestaurants,
-  totalCount,
-  loadMore
-};
+  return { 
+    restaurants, 
+    loading, 
+    error, 
+    fetchRestaurants,
+    totalCount,
+    loadMore,
+    updateLocalRestaurant,
+    addLocalRestaurant,
+    deleteLocalRestaurant
+  };
 };
