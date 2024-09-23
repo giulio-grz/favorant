@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Heart } from 'lucide-react';
+import { cn } from '../../../lib/utils';
 
 const RestaurantList = ({ 
   restaurants, 
@@ -10,7 +13,8 @@ const RestaurantList = ({
   currentUserId, 
   onLike,
   onUnlike,
-  onRestaurantClick
+  onRestaurantClick,
+  showLikeButtons
 }) => {
   const getInitials = (name) => {
     return name
@@ -43,29 +47,45 @@ const RestaurantList = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.3 }}
+          className="flex items-center p-2 hover:bg-gray-50 transition-colors duration-200 rounded-lg"
           onClick={() => onRestaurantClick(restaurant.id)}
-          className="flex items-center p-2 hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
         >
-          <div className="h-12 w-12 mr-4 bg-gray-200 rounded-md flex items-center justify-center text-lg font-bold">
+          <div className="relative h-24 w-24 mr-4 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center text-2xl font-bold text-gray-600">
             {getInitials(restaurant.name)}
+            <div className="absolute bottom-1 left-1">
+              {restaurant.to_try ? (
+                <Badge className="bg-blue-500 text-white text-[0.5rem] w-12 h-5 rounded">To Try</Badge>
+              ) : restaurant.rating ? (
+                <div className="bg-white text-black text-xs font-bold rounded w-6 h-5 flex items-center justify-center shadow">
+                  {restaurant.rating.toFixed(1)}
+                </div>
+              ) : null}
+            </div>
           </div>
-          <div className="flex-grow">
-            <div className="flex items-center">
-              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+          <div className="flex-grow min-w-0">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-semibold truncate">{restaurant.name}</h3>
               <PriceDisplay price={restaurant.price} />
             </div>
-            <p className="text-sm font-medium">{restaurant.restaurant_types?.name}</p>
-            <p className="text-sm text-gray-600">{restaurant.cities?.name}</p>
+            <p className="text-sm text-gray-600 truncate">{restaurant.restaurant_types?.name}</p>
+            <p className="text-sm text-gray-500 truncate">{restaurant.cities?.name}</p>
           </div>
-          <div className="flex-shrink-0 ml-4 text-right">
-            {restaurant.to_try ? (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">To Try</Badge>
-            ) : restaurant.rating ? (
-              <div className="text-lg font-bold">{restaurant.rating.toFixed(1)}</div>
-            ) : (
-              <span className="text-sm text-gray-500">No reviews</span>
-            )}
-          </div>
+          {showLikeButtons && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                restaurant.isLiked ? onUnlike(restaurant.id) : onLike(restaurant.id);
+              }}
+              className={cn(
+                "transition-colors duration-200 ml-2",
+                restaurant.isLiked ? "text-red-500 hover:text-red-600" : "text-gray-400 hover:text-gray-500"
+              )}
+            >
+              <Heart className={cn("h-5 w-5", restaurant.isLiked && "fill-current")} />
+            </Button>
+          )}
         </motion.div>
       ))}
       {totalCount > restaurants.length && (
