@@ -47,7 +47,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto p-4">
+    <div className="space-y-6 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold">Filter & Sort Restaurants</h2>
       
       <div className="flex flex-wrap gap-2 mb-4">

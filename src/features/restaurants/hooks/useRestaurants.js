@@ -6,6 +6,7 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
 
   const fetchRestaurants = useCallback(async () => {
     console.log('fetchRestaurants called with:', { currentUserId, targetUserId, filters, sortOption, activeTab });
@@ -22,7 +23,16 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
     try {
       let query = supabase
         .from('restaurants')
-        .select('*, restaurant_types(*), cities(*)', { count: 'exact' });
+        .select(`
+          id, 
+          name, 
+          rating, 
+          to_try, 
+          price, 
+          created_at,
+          restaurant_types(id, name), 
+          cities(id, name)
+        `, { count: 'exact' });
 
       console.log('Initial query setup complete');
 
@@ -47,8 +57,6 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
         console.log('Viewing another user\'s profile');
         query = query.eq('user_id', targetUserId);
       }
-
-      console.log('Query after user check');
 
       // Apply filters
       if (filters.name) query = query.ilike('name', `%${filters.name}%`);
@@ -75,6 +83,11 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
           query = query.order('created_at', { ascending: false });
       }
 
+      // Apply pagination
+      const from = (page - 1) * 20;
+      const to = from + 19;
+      query = query.range(from, to);
+
       console.log('Final query setup complete');
 
       const { data, error, count } = await query;
@@ -99,7 +112,7 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
 
       console.log('Restaurants with liked status:', restaurantsWithLikedStatus);
 
-      setRestaurants(restaurantsWithLikedStatus);
+      setRestaurants(prev => page === 1 ? restaurantsWithLikedStatus : [...prev, ...restaurantsWithLikedStatus]);
       setTotalCount(count);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
@@ -107,15 +120,15 @@ export const useRestaurants = (currentUserId, targetUserId, filters, sortOption,
     } finally {
       setLoading(false);
     }
-  }, [currentUserId, targetUserId, filters, sortOption, activeTab]);
+  }, [currentUserId, targetUserId, filters, sortOption, activeTab, page]);
 
   useEffect(() => {
     console.log('useEffect triggered, calling fetchRestaurants');
     fetchRestaurants();
   }, [fetchRestaurants]);
 
-  const loadMore = useCallback(async () => {
-    console.log('Load more functionality not yet implemented');
+  const loadMore = useCallback(() => {
+    setPage(prevPage => prevPage + 1);
   }, []);
 
   const updateLocalRestaurant = useCallback((updatedRestaurant) => {
