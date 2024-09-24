@@ -72,7 +72,7 @@ function App() {
     <ErrorBoundary>
       <Router>
         {user && <Header user={user} setUser={setUser} />}
-        <main className="container mx-auto px-4 py-8">
+        <main className="max-w-full px-4 sm:px-6 lg:px-44">
           <Routes>
             <Route 
               path="/auth" 

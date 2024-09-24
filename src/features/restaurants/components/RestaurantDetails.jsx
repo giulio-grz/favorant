@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger 
 } from '../../../components/ui/dropdown-menu';
 import { Edit, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-react';
-import { supabase } from '../../../supabaseClient';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
 
@@ -59,8 +58,8 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
   );
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="max-w-full">
+      <div className="flex items-center justify-between">
         <Button
           variant="ghost"
           onClick={() => navigate(-1)}
@@ -86,9 +85,9 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
           </DropdownMenu>
         )}
       </div>
-      <div className="bg-white p-6 rounded-lg">
+      <div className="mt-4">
         <div className="flex items-start">
-          <div className="relative h-32 w-32 mr-6 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center text-3xl font-bold text-gray-600">
+          <div className="relative h-24 w-24 mr-4 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center text-2xl font-bold text-gray-600">
             {getInitials(restaurant.name)}
             <div className="absolute bottom-1 left-1">
               {restaurant.to_try ? (
@@ -111,7 +110,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
           </div>
         </div>
         {restaurant.notes && (
-          <div className="mt-6">
+          <div className="mt-4">
             <h3 className="text-lg font-semibold mb-2">Notes</h3>
             <p className="text-gray-700 bg-gray-50 p-3 rounded-md">{restaurant.notes}</p>
           </div>
