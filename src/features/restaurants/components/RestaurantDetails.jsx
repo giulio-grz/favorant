@@ -11,11 +11,25 @@ import {
 import { Edit, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-react';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
+import { useRestaurantOperations } from '../hooks/useRestaurantOperations';
 
+/**
+ * RestaurantDetails Component
+ * 
+ * This component displays the details of a specific restaurant.
+ * It uses the useRestaurantDetails hook to fetch the restaurant data
+ * and the useRestaurantOperations hook for delete functionality.
+ * 
+ * @param {Object} props
+ * @param {Object} props.user - The current user object
+ * @param {Function} props.updateLocalRestaurant - Function to update the restaurant in the local state
+ * @param {Function} props.deleteLocalRestaurant - Function to delete the restaurant from the local state
+ */
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { restaurant, loading, error } = useRestaurantDetails(id);
+  const { deleteRestaurant } = useRestaurantOperations();
 
   if (loading) return <LoadingSpinner />;
   if (error) return <div className="text-center text-red-500">Error: {error}</div>;
@@ -24,13 +38,16 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
   const isOwner = restaurant.user_id === user.id;
 
   const handleEdit = () => navigate(`/edit/${restaurant.id}`);
+  
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this restaurant?')) {
       try {
-        await deleteLocalRestaurant(restaurant.id);
+        await deleteRestaurant(restaurant.id);
+        deleteLocalRestaurant(restaurant.id);
         navigate('/');
       } catch (error) {
-        alert('Failed to delete restaurant');
+        console.error('Failed to delete restaurant:', error);
+        alert('Failed to delete restaurant: ' + error.message);
       }
     }
   };
@@ -100,7 +117,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
             </div>
           </div>
           <div className="flex-grow">
-            <h2 className="text-xl font-bold mb-2">{restaurant.name}</h2>
+            <h2 className="text-lg font-bold mb-2">{restaurant.name}</h2>
             <div className="flex items-center mb-2">
               <PriceDisplay price={restaurant.price} />
             </div>

@@ -48,7 +48,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold">Filter & Sort Restaurants</h2>
+      <h2 className="text-lg font-semibold">Filter & Sort Restaurants</h2>
       
       <div className="flex flex-wrap gap-2 mb-4">
         {Object.entries(filters).map(([key, value]) => {
@@ -86,7 +86,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="type">
-          <AccordionTrigger>Type</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Type</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {types.map((type) => (
@@ -105,7 +105,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="city">
-          <AccordionTrigger>City</AccordionTrigger>
+          <AccordionTrigger className="text-sm">City</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {cities.map((city) => (

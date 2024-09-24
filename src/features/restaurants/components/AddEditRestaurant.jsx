@@ -182,7 +182,7 @@ const AddEditRestaurant = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">{isEditing ? 'Edit Restaurant' : 'Add New Restaurant'}</h2>
+        <h2 className="text-lg font-semibold">{isEditing ? 'Edit Restaurant' : 'Add New Restaurant'}</h2>
       </div>
       
       <div className="space-y-2">
@@ -192,7 +192,7 @@ const AddEditRestaurant = ({
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="type">
-          <AccordionTrigger>Type</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Type</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {types.map((type) => (
@@ -242,7 +242,7 @@ const AddEditRestaurant = ({
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="city">
-          <AccordionTrigger>City</AccordionTrigger>
+          <AccordionTrigger className="text-sm">City</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {cities.map((city) => (
