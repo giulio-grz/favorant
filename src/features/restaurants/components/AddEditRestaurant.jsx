@@ -77,6 +77,14 @@ const AddEditRestaurant = ({
     setRestaurant(prev => ({ ...prev, to_try: checked }));
   };
 
+  const handleTypeClick = (typeId) => {
+    setRestaurant(prev => ({ ...prev, type_id: typeId }));
+  };
+
+  const handleCityClick = (cityId) => {
+    setRestaurant(prev => ({ ...prev, city_id: cityId }));
+  };
+
   const handleAddType = async () => {
     if (newTypeName.trim()) {
       const newType = await addType(newTypeName.trim());
@@ -174,7 +182,7 @@ const AddEditRestaurant = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">{isEditing ? 'Edit Restaurant' : 'Add New Restaurant'}</h2>
+        <h2 className="text-lg font-semibold">{isEditing ? 'Edit Restaurant' : 'Add New Restaurant'}</h2>
       </div>
       
       <div className="space-y-2">
@@ -184,35 +192,45 @@ const AddEditRestaurant = ({
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="type">
-          <AccordionTrigger>Type</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Type</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {types.map((type) => (
-                <DropdownMenu key={type.id}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant={restaurant.type_id === type.id ? "default" : "outline"}
-                      onClick={() => setRestaurant(prev => ({ ...prev, type_id: type.id }))}
-                    >
-                      {type.name}
-                      <MoreVertical className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => {
-                      setEditingType(type);
-                      setNewTypeName(type.name);
-                      setIsEditTypeDialogOpen(true);
-                    }}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteType(type.id)}>
-                      <Trash className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div key={type.id} className="flex items-center">
+                  <Button
+                    type="button"
+                    variant={restaurant.type_id === type.id ? "default" : "outline"}
+                    onClick={() => handleTypeClick(type.id)}
+                    className="rounded-r-none"
+                  >
+                    {type.name}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={restaurant.type_id === type.id ? "default" : "outline"}
+                        className="rounded-l-none border-l-0 px-2"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => {
+                        setEditingType(type);
+                        setNewTypeName(type.name);
+                        setIsEditTypeDialogOpen(true);
+                      }}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteType(type.id)}>
+                        <Trash className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ))}
               <Button type="button" variant="outline" onClick={() => setIsAddTypeDialogOpen(true)}>
                 + Add New
@@ -224,35 +242,45 @@ const AddEditRestaurant = ({
       
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="city">
-          <AccordionTrigger>City</AccordionTrigger>
+          <AccordionTrigger className="text-sm">City</AccordionTrigger>
           <AccordionContent>
             <div className="flex flex-wrap gap-2">
               {cities.map((city) => (
-                <DropdownMenu key={city.id}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant={restaurant.city_id === city.id ? "default" : "outline"}
-                      onClick={() => setRestaurant(prev => ({ ...prev, city_id: city.id }))}
-                    >
-                      {city.name}
-                      <MoreVertical className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => {
-                      setEditingCity(city);
-                      setNewCityName(city.name);
-                      setIsEditCityDialogOpen(true);
-                    }}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteCity(city.id)}>
-                      <Trash className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div key={city.id} className="flex items-center">
+                  <Button
+                    type="button"
+                    variant={restaurant.city_id === city.id ? "default" : "outline"}
+                    onClick={() => handleCityClick(city.id)}
+                    className="rounded-r-none"
+                  >
+                    {city.name}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={restaurant.city_id === city.id ? "default" : "outline"}
+                        className="rounded-l-none border-l-0 px-2"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => {
+                        setEditingCity(city);
+                        setNewCityName(city.name);
+                        setIsEditCityDialogOpen(true);
+                      }}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteCity(city.id)}>
+                        <Trash className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ))}
               <Button type="button" variant="outline" onClick={() => setIsAddCityDialogOpen(true)}>
                 + Add New
@@ -319,7 +347,7 @@ const AddEditRestaurant = ({
           {isEditing ? 'Update' : 'Add'} Restaurant
         </Button>
       </div>
-
+  
       <Dialog open={isAddTypeDialogOpen} onOpenChange={setIsAddTypeDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -344,7 +372,7 @@ const AddEditRestaurant = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+  
       <Dialog open={isAddCityDialogOpen} onOpenChange={setIsAddCityDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -369,7 +397,7 @@ const AddEditRestaurant = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+  
       <Dialog open={isEditTypeDialogOpen} onOpenChange={setIsEditTypeDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -394,7 +422,7 @@ const AddEditRestaurant = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+  
       <Dialog open={isEditCityDialogOpen} onOpenChange={setIsEditCityDialogOpen}>
         <DialogContent>
           <DialogHeader>

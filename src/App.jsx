@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { getCurrentUser } from './supabaseClient';
 import { useRestaurants } from './features/restaurants/hooks/useRestaurants';
 import { useTypesAndCities } from './features/restaurants/hooks/useTypesAndCities';
-import Auth from './components/Auth';
-import RestaurantDashboard from './features/restaurants/RestaurantDashboard';
-import RestaurantDetails from './features/restaurants/components/RestaurantDetails';
-import AddEditRestaurant from './features/restaurants/components/AddEditRestaurant';
-import UserSettings from './features/restaurants/UserSettings';
-import RestaurantFilter from './features/restaurants/components/RestaurantFilter';
 import ErrorBoundary from './ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import Header from './components/Header';
+
+// Lazy load components
+const Auth = lazy(() => import('./components/Auth'));
+const RestaurantDashboard = lazy(() => import('./features/restaurants/RestaurantDashboard'));
+const RestaurantDetails = lazy(() => import('./features/restaurants/components/RestaurantDetails'));
+const AddEditRestaurant = lazy(() => import('./features/restaurants/components/AddEditRestaurant'));
+const UserSettings = lazy(() => import('./features/restaurants/UserSettings'));
+const RestaurantFilter = lazy(() => import('./features/restaurants/components/RestaurantFilter'));
 
 function App() {
   const [user, setUser] = useState(null);
@@ -73,136 +75,138 @@ function App() {
       <Router>
         {user && <Header user={user} setUser={setUser} />}
         <main className="max-w-full px-4 sm:px-6 lg:px-44">
-          <Routes>
-            <Route 
-              path="/auth" 
-              element={user ? <Navigate to="/" replace /> : <Auth setUser={setUser} />} 
-            />
-            <Route 
-              path="/" 
-              element={
-                user ? (
-                  <RestaurantDashboard 
-                    user={user} 
-                    restaurants={restaurants}
-                    loading={restaurantsLoading}
-                    error={restaurantsError}
-                    totalCount={totalCount}
-                    loadMore={loadMore}
-                    filters={filters}
-                    setFilters={setFilters}
-                    sortOption={sortOption}
-                    setSortOption={setSortOption}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-            <Route 
-              path="/user/:userId" 
-              element={
-                user ? (
-                  <RestaurantDashboard 
-                    user={user} 
-                    restaurants={restaurants}
-                    loading={restaurantsLoading}
-                    error={restaurantsError}
-                    totalCount={totalCount}
-                    loadMore={loadMore}
-                    filters={filters}
-                    setFilters={setFilters}
-                    sortOption={sortOption}
-                    setSortOption={setSortOption}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-            <Route 
-              path="/restaurant/:id" 
-              element={
-                user ? (
-                  <RestaurantDetails 
-                    user={user} 
-                    updateLocalRestaurant={updateLocalRestaurant}
-                    deleteLocalRestaurant={deleteLocalRestaurant}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-            <Route 
-              path="/add" 
-              element={
-                user ? (
-                  <AddEditRestaurant 
-                    user={user}
-                    types={types}
-                    cities={cities}
-                    addType={addType}
-                    editType={editType}
-                    deleteType={deleteType}
-                    addCity={addCity}
-                    editCity={editCity}
-                    deleteCity={deleteCity}
-                    addLocalRestaurant={addLocalRestaurant}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-            <Route 
-              path="/edit/:id" 
-              element={
-                user ? (
-                  <AddEditRestaurant 
-                    user={user}
-                    types={types}
-                    cities={cities}
-                    addType={addType}
-                    editType={editType}
-                    deleteType={deleteType}
-                    addCity={addCity}
-                    editCity={editCity}
-                    deleteCity={deleteCity}
-                    updateLocalRestaurant={updateLocalRestaurant}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={user ? <UserSettings user={user} setUser={setUser} /> : <Navigate to="/auth" replace />} 
-            />
-            <Route 
-              path="/filter" 
-              element={
-                user ? (
-                  <RestaurantFilter 
-                    filters={filters}
-                    setFilters={setFilters}
-                    sortOption={sortOption}
-                    setSortOption={setSortOption}
-                    types={types}
-                    cities={cities}
-                    onApplyFilters={handleApplyFilters}
-                  />
-                ) : (
-                  <Navigate to="/auth" replace />
-                )
-              } 
-            />
-          </Routes>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              <Route 
+                path="/auth" 
+                element={user ? <Navigate to="/" replace /> : <Auth setUser={setUser} />} 
+              />
+              <Route 
+                path="/" 
+                element={
+                  user ? (
+                    <RestaurantDashboard 
+                      user={user} 
+                      restaurants={restaurants}
+                      loading={restaurantsLoading}
+                      error={restaurantsError}
+                      totalCount={totalCount}
+                      loadMore={loadMore}
+                      filters={filters}
+                      setFilters={setFilters}
+                      sortOption={sortOption}
+                      setSortOption={setSortOption}
+                      activeTab={activeTab}
+                      setActiveTab={setActiveTab}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/user/:userId" 
+                element={
+                  user ? (
+                    <RestaurantDashboard 
+                      user={user} 
+                      restaurants={restaurants}
+                      loading={restaurantsLoading}
+                      error={restaurantsError}
+                      totalCount={totalCount}
+                      loadMore={loadMore}
+                      filters={filters}
+                      setFilters={setFilters}
+                      sortOption={sortOption}
+                      setSortOption={setSortOption}
+                      activeTab={activeTab}
+                      setActiveTab={setActiveTab}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/restaurant/:id" 
+                element={
+                  user ? (
+                    <RestaurantDetails 
+                      user={user} 
+                      updateLocalRestaurant={updateLocalRestaurant}
+                      deleteLocalRestaurant={deleteLocalRestaurant}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/add" 
+                element={
+                  user ? (
+                    <AddEditRestaurant 
+                      user={user}
+                      types={types}
+                      cities={cities}
+                      addType={addType}
+                      editType={editType}
+                      deleteType={deleteType}
+                      addCity={addCity}
+                      editCity={editCity}
+                      deleteCity={deleteCity}
+                      addLocalRestaurant={addLocalRestaurant}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/edit/:id" 
+                element={
+                  user ? (
+                    <AddEditRestaurant 
+                      user={user}
+                      types={types}
+                      cities={cities}
+                      addType={addType}
+                      editType={editType}
+                      deleteType={deleteType}
+                      addCity={addCity}
+                      editCity={editCity}
+                      deleteCity={deleteCity}
+                      updateLocalRestaurant={updateLocalRestaurant}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/settings" 
+                element={user ? <UserSettings user={user} setUser={setUser} /> : <Navigate to="/auth" replace />} 
+              />
+              <Route 
+                path="/filter" 
+                element={
+                  user ? (
+                    <RestaurantFilter 
+                      filters={filters}
+                      setFilters={setFilters}
+                      sortOption={sortOption}
+                      setSortOption={setSortOption}
+                      types={types}
+                      cities={cities}
+                      onApplyFilters={handleApplyFilters}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+            </Routes>
+          </Suspense>
         </main>
       </Router>
     </ErrorBoundary>
