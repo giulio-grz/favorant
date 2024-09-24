@@ -14,8 +14,8 @@ const Header = ({ user, setUser }) => {
   };
 
   return (
-    <header className="bg-background border-b">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+    <header className="bg-background border-b mb-10">
+      <div className="max-w-full px-4 sm:px-6 lg:px-44 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link to="/" className="text-2xl font-bold">
             Favorants
