@@ -96,8 +96,8 @@ const RestaurantDashboard = ({
       {isViewingOwnRestaurants ? (
         <div className="space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-              <TabsList className="w-full sm:w-auto">
+            <div className="flex flex-row items-center justify-between space-x-4 w-full">
+              <TabsList className="w-auto sm:w-auto">
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="visited">Visited</TabsTrigger>
                 <TabsTrigger value="toTry">To Try</TabsTrigger>

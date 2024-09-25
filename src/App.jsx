@@ -73,7 +73,7 @@ function App() {
     <ErrorBoundary>
       <Router>
         {user && <Header user={user} setUser={setUser} />}
-        <main className="max-w-full px-4 sm:px-6 lg:px-44">
+        <main className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw]">
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               <Route 

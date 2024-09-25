@@ -112,29 +112,35 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         )}
       </div>
       <div className="mt-4">
-        <div className="flex items-start">
-          <div className="relative h-24 w-24 mr-4 bg-slate-300 rounded-lg overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
-            {getInitials(restaurant.name)}
-            <div className="absolute bottom-1 left-1">
-              {restaurant.to_try ? (
-                <Badge className="bg-green-400 text-black font-bold text-[0.5rem] px-2 py-0.5 w-12 h-5 rounded shadow">To Try</Badge>
-              ) : restaurant.rating ? (
-                <div className="bg-white text-black text-sm font-bold rounded w-8 h-5 flex items-center justify-center shadow">
-                  {restaurant.rating.toFixed(1)}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex-grow">
-            <h2 className="text-lg font-bold mb-2">{restaurant.name}</h2>
-            <div className="flex items-center mb-2">
-              <PriceDisplay price={restaurant.price} />
-            </div>
-            <span className="text-gray-600">{restaurant.restaurant_types?.name}</span>
-            <span className="mx-2">•</span>
-            <span className="text-gray-600 mb-2">{restaurant.cities?.name}</span>
+      <div className="flex flex-col items-start">
+        <div className="relative h-44 w-full mb-4 bg-slate-300 rounded-lg overflow-hidden flex items-center justify-center text-3xl font-bold text-white shadow">
+          {getInitials(restaurant.name)}
+          <div className="absolute bottom-1 left-1">
+            {restaurant.to_try ? (
+              <Badge className="bg-green-400 text-black font-bold text-[0.7rem] px-2 py-0.5 w-14 h-6 rounded shadow">
+                To Try
+              </Badge>
+            ) : restaurant.rating ? (
+              <div className="bg-white text-black text-sm font-bold rounded w-8 h-6 flex items-center justify-center shadow">
+                {restaurant.rating.toFixed(1)}
+              </div>
+            ) : null}
           </div>
         </div>
+        
+        <div className="flex flex-col items-start">
+          <h2 className="text-lg font-bold mb-2">{restaurant.name}</h2>
+          <div className="flex items-center mb-2">
+            <PriceDisplay price={restaurant.price} />
+          </div>
+          <div className="text-gray-600">
+            <span>{restaurant.restaurant_types?.name}</span>
+            <span className="mx-2">•</span>
+            <span>{restaurant.cities?.name}</span>
+          </div>
+        </div>
+      </div>
+
         {restaurant.notes && (
           <div className="mt-4">
             <h3 className="text-lg font-semibold mb-2">Notes</h3>
