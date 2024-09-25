@@ -8,24 +8,13 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '../../../components/ui/dropdown-menu';
-import { Edit, Trash2, MoreHorizontal, ArrowLeft } from 'lucide-react';
+import { Edit, Trash2, MoreHorizontal, ArrowLeft, Copy } from 'lucide-react';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
 import { useRestaurantOperations } from '../hooks/useRestaurantOperations';
+import { copyRestaurant } from '../../../supabaseClient';
 
-/**
- * RestaurantDetails Component
- * 
- * This component displays the details of a specific restaurant.
- * It uses the useRestaurantDetails hook to fetch the restaurant data
- * and the useRestaurantOperations hook for delete functionality.
- * 
- * @param {Object} props
- * @param {Object} props.user - The current user object
- * @param {Function} props.updateLocalRestaurant - Function to update the restaurant in the local state
- * @param {Function} props.deleteLocalRestaurant - Function to delete the restaurant from the local state
- */
-const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant }) => {
+const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { restaurant, loading, error } = useRestaurantDetails(id);
@@ -49,6 +38,17 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
         console.error('Failed to delete restaurant:', error);
         alert('Failed to delete restaurant: ' + error.message);
       }
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      const copiedRestaurant = await copyRestaurant(user.id, restaurant.id);
+      addLocalRestaurant(copiedRestaurant);
+      alert('Restaurant copied to your list!');
+    } catch (error) {
+      console.error('Failed to copy restaurant:', error);
+      alert('Failed to copy restaurant: ' + error.message);
     }
   };
 
@@ -84,7 +84,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
-        {isOwner && (
+        {isOwner ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -100,6 +100,15 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant 
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCopy}
+            className="transition-colors duration-200 text-gray-400 hover:text-gray-500"
+          >
+            <Copy className="h-5 w-5" />
+          </Button>
         )}
       </div>
       <div className="mt-4">
