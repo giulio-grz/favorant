@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getUserRestaurants } from '../../../supabaseClient';
 
-export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) => {
+export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, searchQuery) => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [hasResults, setHasResults] = useState(true);
 
   const fetchRestaurants = useCallback(async () => {
     if (!userId) {
@@ -20,6 +21,18 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
       const data = await getUserRestaurants(userId);
 
       let filteredData = data;
+      
+      // Apply search query
+      if (searchQuery) {
+        const lowercaseQuery = searchQuery.toLowerCase();
+        filteredData = filteredData.filter(r => 
+          r.name.toLowerCase().includes(lowercaseQuery) ||
+          r.restaurant_types?.name.toLowerCase().includes(lowercaseQuery) ||
+          r.cities?.name.toLowerCase().includes(lowercaseQuery)
+        );
+      }
+
+      // Apply other filters
       if (filters.name) {
         filteredData = filteredData.filter(r => r.name.toLowerCase().includes(filters.name.toLowerCase()));
       }
@@ -41,6 +54,7 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
         }
       }
 
+      // Apply sorting
       switch (sortOption) {
         case 'name':
           filteredData.sort((a, b) => a.name.localeCompare(b.name));
@@ -55,13 +69,14 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
 
       setRestaurants(filteredData);
       setTotalCount(filteredData.length);
+      setHasResults(filteredData.length > 0);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [userId, filters, sortOption]);
+  }, [userId, filters, sortOption, searchQuery]);
 
   useEffect(() => {
     fetchRestaurants();
@@ -79,12 +94,17 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
     if (isViewingOwnRestaurants) {
       setRestaurants(prevRestaurants => [newRestaurant, ...prevRestaurants]);
       setTotalCount(prevCount => prevCount + 1);
+      setHasResults(true);
     }
   }, [isViewingOwnRestaurants]);
 
   const deleteLocalRestaurant = useCallback((id) => {
-    setRestaurants(prevRestaurants => prevRestaurants.filter(restaurant => restaurant.id !== id));
-    setTotalCount(prevCount => prevCount - 1);
+    setRestaurants(prevRestaurants => {
+      const updatedRestaurants = prevRestaurants.filter(restaurant => restaurant.id !== id);
+      setTotalCount(updatedRestaurants.length);
+      setHasResults(updatedRestaurants.length > 0);
+      return updatedRestaurants;
+    });
   }, []);
 
   return { 
@@ -92,6 +112,7 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
     loading, 
     error, 
     totalCount,
+    hasResults,
     fetchRestaurants,
     updateLocalRestaurant,
     addLocalRestaurant,

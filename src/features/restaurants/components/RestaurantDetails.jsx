@@ -113,13 +113,13 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </div>
       <div className="mt-4">
         <div className="flex items-start">
-          <div className="relative h-24 w-24 mr-4 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center text-2xl font-bold text-gray-600">
+          <div className="relative h-24 w-24 mr-4 bg-slate-300 rounded-lg overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
             {getInitials(restaurant.name)}
             <div className="absolute bottom-1 left-1">
               {restaurant.to_try ? (
-                <Badge className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded">To Try</Badge>
+                <Badge className="bg-green-400 text-black font-bold text-[0.5rem] px-2 py-0.5 w-12 h-5 rounded shadow">To Try</Badge>
               ) : restaurant.rating ? (
-                <div className="bg-white text-black text-sm font-bold rounded w-8 h-8 flex items-center justify-center shadow">
+                <div className="bg-white text-black text-sm font-bold rounded w-8 h-5 flex items-center justify-center shadow">
                   {restaurant.rating.toFixed(1)}
                 </div>
               ) : null}

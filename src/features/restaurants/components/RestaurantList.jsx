@@ -45,7 +45,7 @@ const RestaurantItem = memo(({
       className="flex items-center p-2 hover:bg-gray-50 transition-colors duration-200 rounded-lg"
       onClick={() => onRestaurantClick(restaurant.id)}
     >
-      <div className="relative h-24 w-24 mr-4 bg-gray-100 rounded-lg overflow-hidden">
+      <div className="relative h-24 w-24 mr-4 bg-slate-300 rounded-lg overflow-hidden">
         {restaurant.imageUrl ? (
           <LazyLoadImage
             alt={restaurant.name}
@@ -55,13 +55,13 @@ const RestaurantItem = memo(({
             threshold={300}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-600">
+          <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-white">
             {getInitials(restaurant.name)}
           </div>
         )}
         <div className="absolute bottom-1 left-1">
           {restaurant.to_try ? (
-            <Badge className="bg-blue-500 text-white text-[0.5rem] w-12 h-5 rounded">To Try</Badge>
+            <Badge className="bg-green-400 text-black font-bold text-[0.5rem] w-12 h-5 rounded shadow">To Try</Badge>
           ) : restaurant.rating ? (
             <div className="bg-white text-black text-xs font-bold rounded w-6 h-5 flex items-center justify-center shadow">
               {restaurant.rating.toFixed(1)}
