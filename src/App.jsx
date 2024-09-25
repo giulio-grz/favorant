@@ -27,7 +27,6 @@ function App() {
     price: null
   });
   const [sortOption, setSortOption] = useState('dateAdded');
-  const [activeTab, setActiveTab] = useState('myRestaurants');
 
   const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
 
@@ -41,7 +40,7 @@ function App() {
     updateLocalRestaurant,
     addLocalRestaurant,
     deleteLocalRestaurant
-  } = useRestaurants(user?.id, user?.id, filters, sortOption, activeTab);
+  } = useRestaurants(user?.id, true, filters, sortOption);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -61,7 +60,7 @@ function App() {
     if (user) {
       fetchRestaurants();
     }
-  }, [user, fetchRestaurants, filters, sortOption, activeTab]);
+  }, [user, fetchRestaurants, filters, sortOption]);
 
   const handleApplyFilters = useCallback((newFilters, newSortOption) => {
     setFilters(newFilters);
@@ -96,8 +95,6 @@ function App() {
                       setFilters={setFilters}
                       sortOption={sortOption}
                       setSortOption={setSortOption}
-                      activeTab={activeTab}
-                      setActiveTab={setActiveTab}
                     />
                   ) : (
                     <Navigate to="/auth" replace />
@@ -119,8 +116,6 @@ function App() {
                       setFilters={setFilters}
                       sortOption={sortOption}
                       setSortOption={setSortOption}
-                      activeTab={activeTab}
-                      setActiveTab={setActiveTab}
                     />
                   ) : (
                     <Navigate to="/auth" replace />
@@ -135,6 +130,7 @@ function App() {
                       user={user} 
                       updateLocalRestaurant={updateLocalRestaurant}
                       deleteLocalRestaurant={deleteLocalRestaurant}
+                      addLocalRestaurant={addLocalRestaurant}
                     />
                   ) : (
                     <Navigate to="/auth" replace />

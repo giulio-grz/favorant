@@ -17,7 +17,6 @@ export const signUp = async (email, password, username) => {
     if (error) throw error;
     
     if (data.user) {
-      // Check if profile exists
       const { data: existingProfile, error: profileCheckError } = await supabase
         .from('profiles')
         .select('*')
@@ -29,7 +28,6 @@ export const signUp = async (email, password, username) => {
       }
 
       if (!existingProfile) {
-        // Only insert if profile doesn't exist
         const { error: insertError } = await supabase
           .from('profiles')
           .insert([{ id: data.user.id, username }]);
@@ -94,7 +92,7 @@ export const searchUsers = async (query, currentUserId) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username')
-      .neq('id', currentUserId)  // Exclude the current user
+      .neq('id', currentUserId)
       .ilike('username', `%${query}%`)
       .limit(5);
 
@@ -115,40 +113,53 @@ export const updateProfile = async (userId, updates) => {
   return data;
 };
 
-export const likeRestaurant = async (userId, restaurantId) => {
-  const { data, error } = await supabase
-    .from('liked_restaurants')
-    .upsert({ user_id: userId, restaurant_id: restaurantId }, { onConflict: 'user_id,restaurant_id' });
-  if (error) throw error;
-  return data;
-};
-
-export const unlikeRestaurant = async (userId, restaurantId) => {
-  const { data, error } = await supabase
-    .from('liked_restaurants')
-    .delete()
-    .match({ user_id: userId, restaurant_id: restaurantId });
-  if (error) throw error;
-  return data;
-};
-
-export const getLikedRestaurants = async (userId, viewingUserId = userId) => {
-  const { data, error } = await supabase
-    .from('liked_restaurants')
+export const copyRestaurant = async (userId, originalRestaurantId) => {
+  const { data: originalRestaurant, error: fetchError } = await supabase
+    .from('restaurants')
     .select(`
-      restaurant_id,
-      user_id,
-      restaurants (*, restaurant_types(*), cities(*))
+      *,
+      user:profiles!restaurants_user_id_fkey(username)
     `)
-    .eq(viewingUserId === userId ? 'user_id' : 'restaurants.user_id', viewingUserId);
+    .eq('id', originalRestaurantId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const newRestaurant = {
+    name: originalRestaurant.name,
+    type_id: originalRestaurant.type_id,
+    city_id: originalRestaurant.city_id,
+    rating: originalRestaurant.rating,
+    price: originalRestaurant.price,
+    notes: `Added from ${originalRestaurant.user.username}\n\n${originalRestaurant.notes || ''}`.trim(),
+    to_try: true,
+    user_id: userId,
+    created_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabase
+    .from('restaurants')
+    .insert([newRestaurant])
+    .select();
+
   if (error) throw error;
-  return data.map(item => ({ ...item.restaurants, isLiked: item.user_id === userId }));
+  return data[0];
 };
 
-// Add this for debugging
-supabase.auth.onAuthStateChange((event, session) => {
-  console.log('Auth event:', event, 'Session:', session)
-})
+export const getUserRestaurants = async (userId) => {
+  const { data, error } = await supabase
+    .from('restaurants')
+    .select(`
+      *,
+      restaurant_types(*),
+      cities(*)
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
 
 export const updatePassword = async (currentPassword, newPassword) => {
   const { error } = await supabase.auth.updateUser({
@@ -156,3 +167,7 @@ export const updatePassword = async (currentPassword, newPassword) => {
   });
   if (error) throw error;
 };
+
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth event:', event, 'Session:', session)
+})

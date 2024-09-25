@@ -5,21 +5,8 @@ import RestaurantList from './components/RestaurantList';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
 import { useRestaurants } from './hooks/useRestaurants';
-import { likeRestaurant, unlikeRestaurant, getProfile } from '../../supabaseClient';
+import { copyRestaurant, getProfile } from '../../supabaseClient';
 
-/**
- * RestaurantDashboard Component
- * 
- * This component serves as the main dashboard for displaying restaurants.
- * It handles fetching restaurants, likes/unlikes, and navigation to restaurant details.
- * 
- * @param {Object} props
- * @param {Object} props.user - Current user object
- * @param {Object} props.filters - Applied filters for restaurants
- * @param {Function} props.setFilters - Function to update filters
- * @param {string} props.sortOption - Current sort option
- * @param {Function} props.setSortOption - Function to update sort option
- */
 const RestaurantDashboard = ({ 
   user, 
   filters, 
@@ -29,9 +16,20 @@ const RestaurantDashboard = ({
 }) => {
   const { userId: routeUserId } = useParams();
   const navigate = useNavigate();
-  const [viewingUserId, setViewingUserId] = useState(user.id);
+  const [viewingUserId, setViewingUserId] = useState(routeUserId || user.id);
   const [viewingUserProfile, setViewingUserProfile] = useState(null);
-  const [activeTab, setActiveTab] = useState('myRestaurants');
+  const [activeTab, setActiveTab] = useState('all');
+
+  const isViewingOwnRestaurants = viewingUserId === user.id;
+
+  const { 
+    restaurants, 
+    loading, 
+    error,
+    totalCount,
+    fetchRestaurants,
+    addLocalRestaurant,
+  } = useRestaurants(viewingUserId, isViewingOwnRestaurants, filters, sortOption);
 
   useEffect(() => {
     setViewingUserId(routeUserId || user.id);
@@ -52,97 +50,92 @@ const RestaurantDashboard = ({
     };
 
     fetchViewingUserProfile();
-  }, [viewingUserId, user.id]);
+    fetchRestaurants();
+  }, [viewingUserId, user.id, fetchRestaurants]);
 
-  const { 
-    restaurants, 
-    loading, 
-    error,
-    totalCount,
-    loadMore,
-    updateLocalRestaurant,
-    addLocalRestaurant,
-    deleteLocalRestaurant,
-    fetchRestaurants
-  } = useRestaurants(user.id, viewingUserId, filters, sortOption, activeTab);
-
-  const handleLike = useCallback(async (restaurantId) => {
+  const handleCopy = useCallback(async (restaurantId) => {
     try {
-      await likeRestaurant(user.id, restaurantId);
-      updateLocalRestaurant({ id: restaurantId, isLiked: true });
+      const copiedRestaurant = await copyRestaurant(user.id, restaurantId);
+      addLocalRestaurant(copiedRestaurant);
+      alert('Restaurant copied to your list!');
     } catch (error) {
-      console.error('Error liking restaurant:', error);
+      console.error('Error copying restaurant:', error);
+      alert('Failed to copy restaurant: ' + error.message);
     }
-  }, [user.id, updateLocalRestaurant]);
-
-  const handleUnlike = useCallback(async (restaurantId) => {
-    try {
-      await unlikeRestaurant(user.id, restaurantId);
-      updateLocalRestaurant({ id: restaurantId, isLiked: false });
-    } catch (error) {
-      console.error('Error unliking restaurant:', error);
-    }
-  }, [user.id, updateLocalRestaurant]);
+  }, [user.id, addLocalRestaurant]);
 
   const handleRestaurantClick = useCallback((restaurantId) => {
     navigate(`/restaurant/${restaurantId}`);
   }, [navigate]);
 
-  const isViewingOwnProfile = viewingUserId === user.id;
+  const filteredRestaurants = restaurants.filter(restaurant => {
+    if (activeTab === 'visited') return !restaurant.to_try;
+    if (activeTab === 'toTry') return restaurant.to_try;
+    return true;
+  });
 
   if (loading && restaurants.length === 0) return <LoadingSpinner />;
   if (error) return <ErrorMessage message={error} />;
 
   return (
     <div className="space-y-6">
-      {isViewingOwnProfile ? (
+      {!isViewingOwnRestaurants && viewingUserProfile && (
+        <h2 className="text-xl font-bold mb-4">
+          {viewingUserProfile.username}'s Restaurants
+        </h2>
+      )}
+      {isViewingOwnRestaurants && (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="myRestaurants">My Restaurants</TabsTrigger>
-            <TabsTrigger value="likedRestaurants">Liked Restaurants</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="visited">Visited</TabsTrigger>
+            <TabsTrigger value="toTry">To Try</TabsTrigger>
           </TabsList>
-          <TabsContent value="myRestaurants">
+          <TabsContent value="all">
             <RestaurantList 
-              restaurants={restaurants}
-              onLoadMore={loadMore}
+              restaurants={filteredRestaurants}
               totalCount={totalCount}
               loading={loading}
               currentUserId={user.id}
+              onCopy={handleCopy}
               onRestaurantClick={handleRestaurantClick}
-              showLikeButtons={false}
+              showCopyButton={!isViewingOwnRestaurants}
             />
           </TabsContent>
-          <TabsContent value="likedRestaurants">
+          <TabsContent value="visited">
             <RestaurantList 
-              restaurants={restaurants}
-              onLoadMore={loadMore}
+              restaurants={filteredRestaurants}
               totalCount={totalCount}
               loading={loading}
               currentUserId={user.id}
-              onLike={handleLike}
-              onUnlike={handleUnlike}
+              onCopy={handleCopy}
               onRestaurantClick={handleRestaurantClick}
-              showLikeButtons={true}
+              showCopyButton={!isViewingOwnRestaurants}
+            />
+          </TabsContent>
+          <TabsContent value="toTry">
+            <RestaurantList 
+              restaurants={filteredRestaurants}
+              totalCount={totalCount}
+              loading={loading}
+              currentUserId={user.id}
+              onCopy={handleCopy}
+              onRestaurantClick={handleRestaurantClick}
+              showCopyButton={!isViewingOwnRestaurants}
             />
           </TabsContent>
         </Tabs>
-      ) : (
-        <div>
-          <h2 className="text-2xl font-bold mb-4">
-            {viewingUserProfile?.username}'s Restaurants
-          </h2>
-          <RestaurantList 
-            restaurants={restaurants}
-            onLoadMore={loadMore}
-            totalCount={totalCount}
-            loading={loading}
-            currentUserId={user.id}
-            onLike={handleLike}
-            onUnlike={handleUnlike}
-            onRestaurantClick={handleRestaurantClick}
-            showLikeButtons={true}
-          />
-        </div>
+      )}
+      {!isViewingOwnRestaurants && (
+        <RestaurantList 
+          restaurants={restaurants}
+          totalCount={totalCount}
+          loading={loading}
+          currentUserId={user.id}
+          onCopy={handleCopy}
+          onRestaurantClick={handleRestaurantClick}
+          showCopyButton={true}
+        />
       )}
     </div>
   );

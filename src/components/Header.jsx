@@ -14,17 +14,15 @@ const Header = ({ user, setUser }) => {
   };
 
   return (
-    <header className="bg-background border-b mb-10">
+    <header className="bg-background mt-8 mb-8">
       <div className="max-w-full px-4 sm:px-6 lg:px-44 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link to="/" className="text-2xl font-bold">
             Favorants
           </Link>
-          <div className="hidden md:block">
-            <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id} />
-          </div>
         </div>
         <div className="hidden md:flex items-center space-x-4">
+            <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id} />
           <Button onClick={() => navigate('/add')} size="sm">
             <PlusCircle className="mr-2 h-4 w-4" />
             Add Restaurant

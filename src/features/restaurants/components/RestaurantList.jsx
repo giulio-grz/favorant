@@ -2,7 +2,7 @@ import React, { useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
-import { Heart } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import 'react-lazy-load-image-component/src/effects/blur.css';
@@ -10,9 +10,9 @@ import 'react-lazy-load-image-component/src/effects/blur.css';
 const RestaurantItem = memo(({ 
   restaurant, 
   onRestaurantClick, 
-  showLikeButtons, 
-  onLike, 
-  onUnlike 
+  showCopyButton, 
+  onCopy,
+  currentUserId
 }) => {
   const getInitials = (name) => {
     return name
@@ -77,20 +77,17 @@ const RestaurantItem = memo(({
         <p className="text-sm text-gray-600 truncate">{restaurant.restaurant_types?.name}</p>
         <p className="text-sm text-gray-500 truncate">{restaurant.cities?.name}</p>
       </div>
-      {showLikeButtons && (
+      {showCopyButton && restaurant.user_id !== currentUserId && (
         <Button
           variant="ghost"
           size="icon"
           onClick={(e) => {
             e.stopPropagation();
-            restaurant.isLiked ? onUnlike(restaurant.id) : onLike(restaurant.id);
+            onCopy(restaurant.id);
           }}
-          className={cn(
-            "transition-colors duration-200 ml-2",
-            restaurant.isLiked ? "text-red-500 hover:text-red-600" : "text-gray-400 hover:text-gray-500"
-          )}
+          className="transition-colors duration-200 ml-2 text-gray-400 hover:text-gray-500"
         >
-          <Heart className={cn("h-5 w-5", restaurant.isLiked && "fill-current")} />
+          <Copy className="h-5 w-5" />
         </Button>
       )}
     </motion.div>
@@ -99,26 +96,20 @@ const RestaurantItem = memo(({
 
 const RestaurantList = ({ 
   restaurants, 
-  onLoadMore, 
   totalCount, 
   loading, 
   currentUserId, 
-  onLike,
-  onUnlike,
+  onCopy,
   onRestaurantClick,
-  showLikeButtons
+  showCopyButton
 }) => {
   const handleRestaurantClick = useCallback((id) => {
     onRestaurantClick(id);
   }, [onRestaurantClick]);
 
-  const handleLike = useCallback((id) => {
-    onLike(id);
-  }, [onLike]);
-
-  const handleUnlike = useCallback((id) => {
-    onUnlike(id);
-  }, [onUnlike]);
+  const handleCopy = useCallback((id) => {
+    onCopy(id);
+  }, [onCopy]);
 
   return (
     <div className="space-y-4">
@@ -127,20 +118,12 @@ const RestaurantList = ({
           key={restaurant.id}
           restaurant={restaurant}
           onRestaurantClick={handleRestaurantClick}
-          showLikeButtons={showLikeButtons}
-          onLike={handleLike}
-          onUnlike={handleUnlike}
+          showCopyButton={showCopyButton}
+          onCopy={handleCopy}
+          currentUserId={currentUserId}
         />
       ))}
-      {totalCount > restaurants.length && (
-        <button 
-          onClick={onLoadMore}
-          className="w-full mt-4 py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors duration-200"
-          disabled={loading}
-        >
-          {loading ? 'Loading...' : 'Load More'}
-        </button>
-      )}
+      {loading && <p>Loading more restaurants...</p>}
     </div>
   );
 };
