@@ -14,18 +14,18 @@ const Header = ({ user, setUser }) => {
   };
 
   return (
-    <header className="bg-background mt-8 mb-8">
+    <header className="bg-background pt-3 pb-3 mb-8">
       <div className="max-w-full px-4 sm:px-6 lg:px-44 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link to="/" className="text-2xl font-bold">
+          <Link to="/" className="text-2xl text-black font-bold">
             Favorants
           </Link>
         </div>
         <div className="hidden md:flex items-center space-x-4">
             <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id} />
-          <Button onClick={() => navigate('/add')} size="sm">
+          <Button onClick={() => navigate('/add')} size="sm" variant="outline">
             <PlusCircle className="mr-2 h-4 w-4" />
-            Add Restaurant
+            Add New
           </Button>
           <Button onClick={() => navigate('/filter')} size="sm" variant="outline">
             <Filter className="mr-2 h-4 w-4" />

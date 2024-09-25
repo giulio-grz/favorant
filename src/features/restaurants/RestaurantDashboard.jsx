@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import RestaurantList from './components/RestaurantList';
@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
 import { useRestaurants } from './hooks/useRestaurants';
 import { copyRestaurant, getProfile } from '../../supabaseClient';
+import SearchDialog from './components/SearchDialog';
 
 const RestaurantDashboard = ({ 
   user, 
@@ -19,6 +20,7 @@ const RestaurantDashboard = ({
   const [viewingUserId, setViewingUserId] = useState(routeUserId || user.id);
   const [viewingUserProfile, setViewingUserProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const isViewingOwnRestaurants = viewingUserId === user.id;
 
@@ -27,6 +29,7 @@ const RestaurantDashboard = ({
     loading, 
     error,
     totalCount,
+    hasResults,
     fetchRestaurants,
     addLocalRestaurant,
   } = useRestaurants(viewingUserId, isViewingOwnRestaurants, filters, sortOption);
@@ -68,74 +71,68 @@ const RestaurantDashboard = ({
     navigate(`/restaurant/${restaurantId}`);
   }, [navigate]);
 
-  const filteredRestaurants = restaurants.filter(restaurant => {
-    if (activeTab === 'visited') return !restaurant.to_try;
-    if (activeTab === 'toTry') return restaurant.to_try;
-    return true;
-  });
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+  }, []);
 
-  if (loading && restaurants.length === 0) return <LoadingSpinner />;
-  if (error) return <ErrorMessage message={error} />;
+  const filteredRestaurants = useMemo(() => {
+    return restaurants.filter(restaurant => {
+      const matchesTab = 
+        (activeTab === 'all') || 
+        (activeTab === 'visited' && !restaurant.to_try) || 
+        (activeTab === 'toTry' && restaurant.to_try);
+      
+      const matchesSearch = searchQuery === '' || 
+        restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        restaurant.restaurant_types?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        restaurant.cities?.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+      return matchesTab && matchesSearch;
+    });
+  }, [restaurants, activeTab, searchQuery]);
 
   return (
     <div className="space-y-6">
-      {!isViewingOwnRestaurants && viewingUserProfile && (
-        <h2 className="text-xl font-bold mb-4">
-          {viewingUserProfile.username}'s Restaurants
-        </h2>
+      {isViewingOwnRestaurants ? (
+        <div className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+              <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="visited">Visited</TabsTrigger>
+                <TabsTrigger value="toTry">To Try</TabsTrigger>
+              </TabsList>
+              <SearchDialog onSearch={handleSearch} searchQuery={searchQuery} />
+            </div>
+          </Tabs>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+          <h2 className="text-xl font-bold">
+            {viewingUserProfile?.username}
+          </h2>
+          <SearchDialog onSearch={handleSearch} searchQuery={searchQuery} />
+        </div>
       )}
-      {isViewingOwnRestaurants && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="visited">Visited</TabsTrigger>
-            <TabsTrigger value="toTry">To Try</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all">
+      {loading && <LoadingSpinner />}
+      {error && <ErrorMessage message={error} />}
+      {!loading && !error && (
+        <>
+          {filteredRestaurants.length > 0 ? (
             <RestaurantList 
               restaurants={filteredRestaurants}
-              totalCount={totalCount}
-              loading={loading}
+              totalCount={filteredRestaurants.length}
               currentUserId={user.id}
               onCopy={handleCopy}
               onRestaurantClick={handleRestaurantClick}
               showCopyButton={!isViewingOwnRestaurants}
             />
-          </TabsContent>
-          <TabsContent value="visited">
-            <RestaurantList 
-              restaurants={filteredRestaurants}
-              totalCount={totalCount}
-              loading={loading}
-              currentUserId={user.id}
-              onCopy={handleCopy}
-              onRestaurantClick={handleRestaurantClick}
-              showCopyButton={!isViewingOwnRestaurants}
-            />
-          </TabsContent>
-          <TabsContent value="toTry">
-            <RestaurantList 
-              restaurants={filteredRestaurants}
-              totalCount={totalCount}
-              loading={loading}
-              currentUserId={user.id}
-              onCopy={handleCopy}
-              onRestaurantClick={handleRestaurantClick}
-              showCopyButton={!isViewingOwnRestaurants}
-            />
-          </TabsContent>
-        </Tabs>
-      )}
-      {!isViewingOwnRestaurants && (
-        <RestaurantList 
-          restaurants={restaurants}
-          totalCount={totalCount}
-          loading={loading}
-          currentUserId={user.id}
-          onCopy={handleCopy}
-          onRestaurantClick={handleRestaurantClick}
-          showCopyButton={true}
-        />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No restaurants found matching your search.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
