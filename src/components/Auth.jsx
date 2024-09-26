@@ -51,13 +51,8 @@ const Auth = ({ setUser }) => {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-bold tracking-tight">
-            {isSignUp ? 'Create an Account' : 'Sign In to Your Account'}
+            {isSignUp ? 'Create an Account' : 'Sign In'}
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {isSignUp 
-              ? 'Enter your details to create a new account' 
-              : 'Enter your credentials to access your account'}
-          </p>
         </div>
 
         <form onSubmit={handleAuth} className="mt-8 space-y-6">

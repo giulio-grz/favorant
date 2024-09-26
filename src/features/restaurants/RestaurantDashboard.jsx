@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RestaurantList from './components/RestaurantList';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import ErrorMessage from '../../components/ErrorMessage';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ErrorMessage from '@/components/ErrorMessage';
 import { useRestaurants } from './hooks/useRestaurants';
-import { copyRestaurant, getProfile } from '../../supabaseClient';
-import SearchDialog from './components/SearchDialog';
+import { copyRestaurant, getProfile } from '@/supabaseClient';
+import SearchBar from './components/SearchBar';
 
 const RestaurantDashboard = ({ 
   user, 
@@ -32,7 +32,7 @@ const RestaurantDashboard = ({
     hasResults,
     fetchRestaurants,
     addLocalRestaurant,
-  } = useRestaurants(viewingUserId, isViewingOwnRestaurants, filters, sortOption);
+  } = useRestaurants(viewingUserId, isViewingOwnRestaurants, filters, sortOption, searchQuery);
 
   useEffect(() => {
     setViewingUserId(routeUserId || user.id);
@@ -82,38 +82,41 @@ const RestaurantDashboard = ({
         (activeTab === 'visited' && !restaurant.to_try) || 
         (activeTab === 'toTry' && restaurant.to_try);
       
-      const matchesSearch = searchQuery === '' || 
-        restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        restaurant.restaurant_types?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        restaurant.cities?.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-      return matchesTab && matchesSearch;
+      return matchesTab;
     });
-  }, [restaurants, activeTab, searchQuery]);
+  }, [restaurants, activeTab]);
 
   return (
     <div className="space-y-6">
       {isViewingOwnRestaurants ? (
         <div className="space-y-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex flex-row items-center justify-between space-x-4 w-full">
-              <TabsList className="w-auto sm:w-auto">
+          <div className="sm:hidden px-[1vw] sm:px-0">
+            <SearchBar onSearch={handleSearch} />
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
+              <TabsList className="w-full sm:w-auto justify-start">
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="visited">Visited</TabsTrigger>
                 <TabsTrigger value="toTry">To Try</TabsTrigger>
               </TabsList>
-              <SearchDialog onSearch={handleSearch} searchQuery={searchQuery} />
+            </Tabs>
+            <div className="hidden sm:block w-64">
+              <SearchBar onSearch={handleSearch} />
             </div>
-          </Tabs>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <h2 className="text-xl font-bold">
             {viewingUserProfile?.username}
           </h2>
-          <SearchDialog onSearch={handleSearch} searchQuery={searchQuery} />
+          <div className="w-full sm:w-64 px-[5vw] sm:px-0">
+            <SearchBar onSearch={handleSearch} />
+          </div>
         </div>
       )}
+
       {loading && <LoadingSpinner />}
       {error && <ErrorMessage message={error} />}
       {!loading && !error && (
