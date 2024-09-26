@@ -3,10 +3,23 @@ import { SearchIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
 } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
 
+/**
+ * SearchDialog Component
+ * 
+ * This component provides a search functionality with an accessible dialog.
+ * It includes a trigger button that opens a dialog with a search input.
+ * 
+ * @param {Object} props
+ * @param {Function} props.onSearch - Function to handle the search action
+ */
 const SearchDialog = ({ onSearch }) => {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,31 +41,39 @@ const SearchDialog = ({ onSearch }) => {
   };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={() => setOpen(true)}
-        className="w-9 px-0"
-      >
-        <SearchIcon className="h-4 w-4" />
-        <span className="sr-only">Search restaurants</span>
-      </Button>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[425px] p-0">
-          <form onSubmit={handleSearch} className="flex items-center p-2">
-            <SearchIcon className="h-4 w-4 mr-2 ml-1 flex-shrink-0 text-muted-foreground" />
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="w-9 px-0"
+        >
+          <SearchIcon className="h-4 w-4" />
+          <span className="sr-only">Search restaurants</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Search Restaurants</DialogTitle>
+          <DialogDescription>
+            Enter a search term to find restaurants.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSearch} className="flex items-center space-x-2">
+          <div className="relative flex-grow">
+            <SearchIcon className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-grow border-none focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+              className="pl-8"
               placeholder="Type to search restaurants..."
               autoFocus
             />
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+          <Button type="submit">Search</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
