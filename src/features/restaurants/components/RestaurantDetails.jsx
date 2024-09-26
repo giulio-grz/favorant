@@ -66,7 +66,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       {[1, 2, 3].map((value) => (
         <span 
           key={value} 
-          className={value <= price ? 'text-black' : 'text-gray-300'}
+          className={value <= price ? 'text-black' : 'text-slate-300'}
         >
           €
         </span>
@@ -133,7 +133,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           <div className="flex items-center mb-2">
             <PriceDisplay price={restaurant.price} />
           </div>
-          <div className="text-gray-600">
+          <div className="text-slate-600">
             <span>{restaurant.restaurant_types?.name}</span>
             <span className="mx-2">•</span>
             <span>{restaurant.cities?.name}</span>

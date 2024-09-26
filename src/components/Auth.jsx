@@ -3,8 +3,16 @@ import { signUp, signIn } from '../supabaseClient';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/card';
 
+/**
+ * Auth Component
+ * 
+ * This component handles user authentication, including both sign-up and sign-in functionality.
+ * It provides a full-page layout that's consistent with shadcn UI styling principles.
+ * 
+ * @param {Object} props
+ * @param {Function} props.setUser - Function to update the user state in the parent component
+ */
 const Auth = ({ setUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +40,6 @@ const Auth = ({ setUser }) => {
     } catch (error) {
       console.error("Auth error:", error);
       setError(error.message);
-      // If it's a duplicate key error, it might mean the user already exists
       if (error.message.includes('duplicate key value')) {
         setError("An account with this email already exists. Try signing in instead.");
       }
@@ -40,56 +47,78 @@ const Auth = ({ setUser }) => {
   };
 
   return (
-    <Card className="w-[350px] mx-auto mt-10">
-      <CardHeader>
-        <CardTitle>{isSignUp ? 'Sign Up' : 'Sign In'}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleAuth} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {isSignUp && (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-bold tracking-tight">
+            {isSignUp ? 'Create an Account' : 'Sign In to Your Account'}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isSignUp 
+              ? 'Enter your details to create a new account' 
+              : 'Enter your credentials to access your account'}
+          </p>
+        </div>
+
+        <form onSubmit={handleAuth} className="mt-8 space-y-6">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Choose a username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+          </div>
+
           <Button type="submit" className="w-full">
             {isSignUp ? 'Sign Up' : 'Sign In'}
           </Button>
         </form>
-      </CardContent>
-      <CardFooter>
-        <Button variant="link" onClick={() => setIsSignUp(!isSignUp)} className="w-full">
-          {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-        </Button>
-      </CardFooter>
-      {error && <p className="text-red-500 text-center mt-2">{error}</p>}
-    </Card>
+
+        <div className="text-center">
+          <Button 
+            variant="link" 
+            onClick={() => setIsSignUp(!isSignUp)}
+            className="text-sm"
+          >
+            {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+          </Button>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive text-center mt-4">{error}</p>
+        )}
+      </div>
+    </div>
   );
 };
 

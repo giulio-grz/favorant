@@ -24,11 +24,11 @@ const RestaurantItem = memo(({
   };
 
   const PriceDisplay = ({ price }) => (
-    <span className="text-sm font-medium ml-2">
+    <span className="text-sm font-medium">
       {[1, 2, 3].map((value) => (
         <span 
           key={value} 
-          className={value <= price ? 'text-black' : 'text-gray-300'}
+          className={value <= price ? 'text-black' : 'text-slate-300'}
         >
           €
         </span>
@@ -72,10 +72,10 @@ const RestaurantItem = memo(({
       <div className="flex-grow min-w-0">
         <div className="flex items-center space-x-2">
           <h3 className="text-lg font-semibold truncate">{restaurant.name}</h3>
-          <PriceDisplay price={restaurant.price} />
         </div>
-        <p className="text-sm text-gray-600 truncate">{restaurant.restaurant_types?.name}</p>
-        <p className="text-sm text-gray-500 truncate">{restaurant.cities?.name}</p>
+        <PriceDisplay price={restaurant.price} />
+        <p className="text-sm text-black truncate">{restaurant.restaurant_types?.name}</p>
+        <p className="text-sm text-slate-500 truncate">{restaurant.cities?.name}</p>
       </div>
       {showCopyButton && restaurant.user_id !== currentUserId && (
         <Button
