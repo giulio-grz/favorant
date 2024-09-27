@@ -11,6 +11,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../../components/ui/dropdown-menu';
 import { Edit, Trash, MoreVertical } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../../components/ui/alert-dialog";
 
 const AddEditRestaurant = ({ 
   user,
@@ -43,10 +53,14 @@ const AddEditRestaurant = ({
   const [isAddCityDialogOpen, setIsAddCityDialogOpen] = useState(false);
   const [isEditTypeDialogOpen, setIsEditTypeDialogOpen] = useState(false);
   const [isEditCityDialogOpen, setIsEditCityDialogOpen] = useState(false);
+  const [isDeleteTypeDialogOpen, setIsDeleteTypeDialogOpen] = useState(false);
+  const [isDeleteCityDialogOpen, setIsDeleteCityDialogOpen] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newCityName, setNewCityName] = useState('');
   const [editingType, setEditingType] = useState(null);
   const [editingCity, setEditingCity] = useState(null);
+  const [deletingType, setDeletingType] = useState(null);
+  const [deletingCity, setDeletingCity] = useState(null);
 
   useEffect(() => {
     if (isEditing) {
@@ -121,21 +135,25 @@ const AddEditRestaurant = ({
     }
   };
 
-  const handleDeleteType = async (typeId) => {
-    if (window.confirm('Are you sure you want to delete this type?')) {
-      await deleteType(typeId);
-      if (restaurant.type_id === typeId) {
+  const handleDeleteType = async () => {
+    if (deletingType) {
+      await deleteType(deletingType.id);
+      if (restaurant.type_id === deletingType.id) {
         setRestaurant(prev => ({ ...prev, type_id: null }));
       }
+      setIsDeleteTypeDialogOpen(false);
+      setDeletingType(null);
     }
   };
 
-  const handleDeleteCity = async (cityId) => {
-    if (window.confirm('Are you sure you want to delete this city?')) {
-      await deleteCity(cityId);
-      if (restaurant.city_id === cityId) {
+  const handleDeleteCity = async () => {
+    if (deletingCity) {
+      await deleteCity(deletingCity.id);
+      if (restaurant.city_id === deletingCity.id) {
         setRestaurant(prev => ({ ...prev, city_id: null }));
       }
+      setIsDeleteCityDialogOpen(false);
+      setDeletingCity(null);
     }
   };
 
@@ -224,7 +242,10 @@ const AddEditRestaurant = ({
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteType(type.id)}>
+                      <DropdownMenuItem onClick={() => {
+                        setDeletingType(type);
+                        setIsDeleteTypeDialogOpen(true);
+                      }}>
                         <Trash className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
@@ -274,7 +295,10 @@ const AddEditRestaurant = ({
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteCity(city.id)}>
+                      <DropdownMenuItem onClick={() => {
+                        setDeletingCity(city);
+                        setIsDeleteCityDialogOpen(true);
+                      }}>
                         <Trash className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
@@ -317,11 +341,11 @@ const AddEditRestaurant = ({
       
       {!restaurant.to_try && (
         <div className="space-y-2">
-          <Label>Rating: {restaurant.rating}/10</Label>
+          <Label>Rating: {restaurant.rating === 10 ? '10' : restaurant.rating.toFixed(1)}/10</Label>
           <Slider
-            min={1}
+            min={0}
             max={10}
-            step={1}
+            step={0.5}
             value={[restaurant.rating]}
             onValueChange={(value) => setRestaurant(prev => ({ ...prev, rating: value[0] }))}
           />
@@ -374,7 +398,7 @@ const AddEditRestaurant = ({
       </Dialog>
   
       <Dialog open={isAddCityDialogOpen} onOpenChange={setIsAddCityDialogOpen}>
-        <DialogContent>
+      <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New City</DialogTitle>
           </DialogHeader>
@@ -447,6 +471,36 @@ const AddEditRestaurant = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteTypeDialogOpen} onOpenChange={setIsDeleteTypeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the type and remove it from any restaurants that use it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteType} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteCityDialogOpen} onOpenChange={setIsDeleteCityDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this city?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the city and remove it from any restaurants that use it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCity} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 };

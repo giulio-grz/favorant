@@ -38,7 +38,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       case 'toTry':
         return 'To Try';
       case 'rating':
-        return `Rating: >${value}`;
+        return `Rating: ≥${value === 10 ? '10' : value.toFixed(1)}`;
       case 'price':
         return `Price: ${'€'.repeat(value)}`;
       default:
@@ -142,7 +142,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
           id="to-try-filter"
           checked={filters.toTry === true}
           onCheckedChange={(checked) => {
-            setFilters({ ...filters, toTry: checked ? true : null, rating: checked ? 0 : filters.rating });
+            setFilters({ ...filters, toTry: checked ? true : null, rating: checked ? null : filters.rating });
           }}
         />
         <Label htmlFor="to-try-filter">To Try</Label>
@@ -150,13 +150,15 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
       
       {filters.toTry !== true && (
         <div className="space-y-2">
-          <Label>Minimum Rating: {filters.rating}/10</Label>
+          <Label>
+            Minimum Rating: {filters.rating !== null ? (filters.rating === 10 ? '10' : filters.rating.toFixed(1)) : 'Any'}/10
+          </Label>
           <Slider
             min={0}
             max={10}
-            step={1}
-            value={[filters.rating]}
-            onValueChange={(value) => setFilters({ ...filters, rating: value[0], toTry: false })}
+            step={0.5}
+            value={[filters.rating !== null ? filters.rating : 0]}
+            onValueChange={(value) => setFilters({ ...filters, rating: value[0] === 0 ? null : value[0], toTry: false })}
           />
         </div>
       )}
@@ -192,7 +194,7 @@ const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setS
             type_id: null,
             city_id: null,
             toTry: null,
-            rating: 0,
+            rating: null,
             price: null
           });
           setSortOption('dateAdded');

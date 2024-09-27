@@ -63,8 +63,8 @@ const RestaurantItem = memo(({
           {restaurant.to_try ? (
             <Badge className="bg-green-400 text-black font-bold text-[0.5rem] w-12 h-5 rounded shadow">To Try</Badge>
           ) : restaurant.rating ? (
-            <div className="bg-white text-black text-xs font-bold rounded w-6 h-5 flex items-center justify-center shadow">
-              {restaurant.rating.toFixed(1)}
+            <div className="bg-white text-black text-xs font-bold rounded px-1 py-0.5 flex items-center shadow">
+              {restaurant.rating === 10 ? '10' : restaurant.rating.toFixed(1)}
             </div>
           ) : null}
         </div>
