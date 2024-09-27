@@ -7,7 +7,22 @@ import ErrorMessage from '@/components/ErrorMessage';
 import { useRestaurants } from './hooks/useRestaurants';
 import { copyRestaurant, getProfile } from '@/supabaseClient';
 import SearchBar from './components/SearchBar';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+/**
+ * RestaurantDashboard Component
+ * 
+ * This component displays a dashboard of restaurants, either for the current user
+ * or for a viewed user's profile. It includes tabs for filtering restaurants,
+ * a search bar, and a list of restaurants.
+ * 
+ * @param {Object} props
+ * @param {Object} props.user - The current logged-in user
+ * @param {Object} props.filters - The current filter settings
+ * @param {Function} props.setFilters - Function to update filters
+ * @param {string} props.sortOption - The current sort option
+ * @param {Function} props.setSortOption - Function to update sort option
+ */
 const RestaurantDashboard = ({ 
   user, 
   filters, 
@@ -86,14 +101,32 @@ const RestaurantDashboard = ({
     });
   }, [restaurants, activeTab]);
 
+  // Helper function to get initials from a name
+  const getInitials = (name) => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="space-y-6">
-      {isViewingOwnRestaurants ? (
-        <div className="space-y-4">
-          <div className="sm:hidden px-[1vw] sm:px-0">
-            <SearchBar onSearch={handleSearch} />
+      <div className="space-y-4">
+        {!isViewingOwnRestaurants && viewingUserProfile && (
+          <div className="flex items-center space-x-4 mb-6 sm:mb-8">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={viewingUserProfile.avatar_url} alt={viewingUserProfile.username} />
+              <AvatarFallback>{getInitials(viewingUserProfile.username)}</AvatarFallback>
+            </Avatar>
+            <h2 className="text-lg font-semibold text-slate-600">
+              {viewingUserProfile.username}
+            </h2>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        )}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+          <div className="order-2 sm:order-1 w-full sm:w-auto">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
               <TabsList className="w-full sm:w-auto justify-start">
                 <TabsTrigger value="all">All</TabsTrigger>
@@ -101,21 +134,12 @@ const RestaurantDashboard = ({
                 <TabsTrigger value="toTry">To Try</TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="hidden sm:block w-64">
-              <SearchBar onSearch={handleSearch} />
-            </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <h2 className="text-xl font-bold">
-            {viewingUserProfile?.username}
-          </h2>
-          <div className="w-full sm:w-64 px-[5vw] sm:px-0">
+          <div className="order-1 sm:order-2 w-full sm:w-64">
             <SearchBar onSearch={handleSearch} />
           </div>
         </div>
-      )}
+      </div>
 
       {loading && <LoadingSpinner />}
       {error && <ErrorMessage message={error} />}

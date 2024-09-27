@@ -18,7 +18,7 @@ const Header = ({ user, setUser }) => {
       <div className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw] py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link to="/" className="text-2xl text-black font-bold">
-            Favorants
+            Favorant
           </Link>
         </div>
         <div className="hidden md:flex items-center space-x-4">
