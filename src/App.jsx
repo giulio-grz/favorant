@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { getCurrentUser } from './supabaseClient';
-import { useRestaurants } from './features/restaurants/hooks/useRestaurants';
+import { getCurrentUser, getUserRestaurants } from './supabaseClient';
 import { useTypesAndCities } from './features/restaurants/hooks/useTypesAndCities';
 import ErrorBoundary from './ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -14,53 +13,69 @@ const RestaurantDetails = lazy(() => import('./features/restaurants/components/R
 const AddEditRestaurant = lazy(() => import('./features/restaurants/components/AddEditRestaurant'));
 const UserSettings = lazy(() => import('./features/restaurants/UserSettings'));
 const RestaurantFilter = lazy(() => import('./features/restaurants/components/RestaurantFilter'));
+const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard'));
 
 function App() {
   const [user, setUser] = useState(null);
+  const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     name: '',
     type_id: null,
     city_id: null,
-    toTry: null,
+    status: null,
     rating: 0,
     price: null
   });
   const [sortOption, setSortOption] = useState('dateAdded');
 
-  const { types, cities, addType, editType, deleteType, addCity, editCity, deleteCity } = useTypesAndCities();
+  const { types, cities } = useTypesAndCities();
 
-  const { 
-    restaurants, 
-    loading: restaurantsLoading, 
-    error: restaurantsError,
-    fetchRestaurants,
-    totalCount,
-    loadMore,
-    updateLocalRestaurant,
-    addLocalRestaurant,
-    deleteLocalRestaurant
-  } = useRestaurants(user?.id, true, filters, sortOption);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Error fetching user:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUser();
+  const fetchUser = useCallback(async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchRestaurants();
-    }
-  }, [user, fetchRestaurants, filters, sortOption]);
+    fetchUser();
+  }, [fetchUser]);
+
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      if (user) {
+        try {
+          const fetchedRestaurants = await getUserRestaurants(user.id);
+          setRestaurants(fetchedRestaurants);
+        } catch (error) {
+          console.error("Error fetching restaurants:", error);
+        }
+      }
+    };
+
+    fetchRestaurants();
+  }, [user]);
+
+  const addLocalRestaurant = useCallback((newRestaurant) => {
+    setRestaurants(prevRestaurants => [newRestaurant, ...prevRestaurants]);
+  }, []);
+
+  const updateLocalRestaurant = useCallback((updatedRestaurant) => {
+    setRestaurants(prevRestaurants =>
+      prevRestaurants.map(restaurant =>
+        restaurant.id === updatedRestaurant.id ? updatedRestaurant : restaurant
+      )
+    );
+  }, []);
+
+  const deleteLocalRestaurant = useCallback((id) => {
+    setRestaurants(prevRestaurants => prevRestaurants.filter(restaurant => restaurant.id !== id));
+  }, []);
 
   const handleApplyFilters = useCallback((newFilters, newSortOption) => {
     setFilters(newFilters);
@@ -85,33 +100,7 @@ function App() {
                 element={
                   user ? (
                     <RestaurantDashboard 
-                      user={user} 
-                      restaurants={restaurants}
-                      loading={restaurantsLoading}
-                      error={restaurantsError}
-                      totalCount={totalCount}
-                      loadMore={loadMore}
-                      filters={filters}
-                      setFilters={setFilters}
-                      sortOption={sortOption}
-                      setSortOption={setSortOption}
-                    />
-                  ) : (
-                    <Navigate to="/auth" replace />
-                  )
-                } 
-              />
-              <Route 
-                path="/user/:userId" 
-                element={
-                  user ? (
-                    <RestaurantDashboard 
-                      user={user} 
-                      restaurants={restaurants}
-                      loading={restaurantsLoading}
-                      error={restaurantsError}
-                      totalCount={totalCount}
-                      loadMore={loadMore}
+                      user={user}
                       filters={filters}
                       setFilters={setFilters}
                       sortOption={sortOption}
@@ -127,7 +116,7 @@ function App() {
                 element={
                   user ? (
                     <RestaurantDetails 
-                      user={user} 
+                      user={user}
                       updateLocalRestaurant={updateLocalRestaurant}
                       deleteLocalRestaurant={deleteLocalRestaurant}
                       addLocalRestaurant={addLocalRestaurant}
@@ -145,13 +134,9 @@ function App() {
                       user={user}
                       types={types}
                       cities={cities}
-                      addType={addType}
-                      editType={editType}
-                      deleteType={deleteType}
-                      addCity={addCity}
-                      editCity={editCity}
-                      deleteCity={deleteCity}
                       addLocalRestaurant={addLocalRestaurant}
+                      updateLocalRestaurant={updateLocalRestaurant}
+                      restaurants={restaurants}
                     />
                   ) : (
                     <Navigate to="/auth" replace />
@@ -166,13 +151,9 @@ function App() {
                       user={user}
                       types={types}
                       cities={cities}
-                      addType={addType}
-                      editType={editType}
-                      deleteType={deleteType}
-                      addCity={addCity}
-                      editCity={editCity}
-                      deleteCity={deleteCity}
+                      addLocalRestaurant={addLocalRestaurant}
                       updateLocalRestaurant={updateLocalRestaurant}
+                      restaurants={restaurants}
                     />
                   ) : (
                     <Navigate to="/auth" replace />
@@ -198,6 +179,16 @@ function App() {
                     />
                   ) : (
                     <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/admin" 
+                element={
+                  user && user.profile.is_admin ? (
+                    <AdminDashboard />
+                  ) : (
+                    <Navigate to="/" replace />
                   )
                 } 
               />

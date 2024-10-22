@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
@@ -8,11 +8,11 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '../../../components/ui/dropdown-menu';
-import { Edit, Trash2, MoreHorizontal, ArrowLeft, Copy } from 'lucide-react';
+import { Edit, Trash2, MoreHorizontal, ArrowLeft, Copy, MapPin, UtensilsCrossed, Euro, Star } from 'lucide-react';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
 import { useRestaurantOperations } from '../hooks/useRestaurantOperations';
-import { copyRestaurant } from '../../../supabaseClient';
+import { addReview } from '../../../supabaseClient';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,19 +23,55 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
+import { Input } from '../../../components/ui/input';
+import { Textarea } from '../../../components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { restaurant, loading, error } = useRestaurantDetails(id);
+  const { restaurant, loading, error, refetch } = useRestaurantDetails(id);
   const { deleteRestaurant } = useRestaurantOperations();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
 
-  if (loading) return <LoadingSpinner />;
-  if (error) return <div className="text-center text-red-500">Error: {error}</div>;
-  if (!restaurant) return <div className="text-center">Restaurant not found</div>;
+  const { aggregateRating, reviewCount } = useMemo(() => {
+    if (!restaurant || !restaurant.restaurant_reviews) {
+      return { aggregateRating: 0, reviewCount: 0 };
+    }
+    const reviews = restaurant.restaurant_reviews;
+    const count = reviews.length;
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    return {
+      aggregateRating: count > 0 ? sum / count : 0,
+      reviewCount: count
+    };
+  }, [restaurant]);
 
-  const isOwner = restaurant.user_id === user.id;
+  const userReview = useMemo(() => {
+    if (!restaurant || !restaurant.restaurant_reviews) return null;
+    return restaurant.restaurant_reviews.find(review => review.user_id === user.id);
+  }, [restaurant, user.id]);
+
+  const handleReviewSubmit = useCallback(async () => {
+    try {
+      await addReview({
+        user_id: user.id,
+        restaurant_id: id,
+        rating: reviewRating,
+        review: reviewText
+      });
+      setIsReviewDialogOpen(false);
+      // Refresh restaurant data
+      const updatedRestaurant = await refetch();
+      updateLocalRestaurant(updatedRestaurant);
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      alert('Failed to submit review: ' + error.message);
+    }
+  }, [user.id, id, reviewRating, reviewText, refetch, updateLocalRestaurant]);
 
   const handleEdit = () => navigate(`/edit/${restaurant.id}`);
   
@@ -61,6 +97,12 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
     }
   };
 
+  if (loading) return <LoadingSpinner />;
+  if (error) return <div className="text-center text-red-500">Error: {error}</div>;
+  if (!restaurant) return <div className="text-center">Restaurant not found</div>;
+
+  const isOwner = restaurant.user_id === user.id;
+
   const getInitials = (name) => {
     return name
       .split(' ')
@@ -71,21 +113,24 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   };
 
   const PriceDisplay = ({ price }) => (
-    <span className="text-sm font-semibold">
-      {[1, 2, 3].map((value) => (
-        <span 
-          key={value} 
-          className={value <= price ? 'text-black' : 'text-slate-300'}
-        >
-          €
-        </span>
-      ))}
-    </span>
+    <div className="flex items-center">
+      <Euro className="w-4 h-4 mr-1" />
+      <span className="text-sm font-semibold">
+        {[1, 2, 3].map((value) => (
+          <span 
+            key={value} 
+            className={value <= price ? 'text-black' : 'text-slate-300'}
+          >
+            €
+          </span>
+        ))}
+      </span>
+    </div>
   );
 
   return (
-    <div className="max-w-full">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto p-4">
+      <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
           onClick={() => navigate(-1)}
@@ -120,43 +165,91 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </Button>
         )}
       </div>
-      <div className="mt-4">
-        <div className="flex flex-col items-start">
-          <div className="relative h-44 w-full mb-4 bg-slate-300 rounded-lg overflow-hidden flex items-center justify-center text-3xl font-bold text-white shadow">
-            {getInitials(restaurant.name)}
-            <div className="absolute bottom-1 left-1">
-              {restaurant.to_try ? (
-                <Badge className="bg-green-400 text-black font-bold text-[0.7rem] px-2 py-0.5 w-14 h-6 rounded shadow">
-                  To Try
-                </Badge>
-              ) : restaurant.rating ? (
-                <div className="bg-white text-black text-sm font-bold rounded px-2 py-1 flex items-center justify-center shadow">
-                  {restaurant.rating === 10 ? '10' : restaurant.rating.toFixed(1)}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          
-          <div className="flex flex-col items-start">
-            <h2 className="text-lg font-bold mb-2">{restaurant.name}</h2>
-            <div className="flex items-center mb-2">
-              <PriceDisplay price={restaurant.price} />
-            </div>
-            <div className="text-slate-600">
-              <span>{restaurant.restaurant_types?.name}</span>
-              <span className="mx-2">•</span>
-              <span>{restaurant.cities?.name}</span>
-            </div>
-          </div>
-        </div>
 
-        {restaurant.notes && (
-          <div className="mt-4">
-            <h3 className="text-lg font-semibold mb-2">Notes</h3>
-            <p className="text-gray-700 bg-gray-50 p-3 rounded-md">{restaurant.notes}</p>
+      <Card className="mb-6">
+        <CardHeader className="relative pb-0">
+          <div className="absolute top-4 right-4">
+            {restaurant.to_try ? (
+              <Badge className="bg-green-400 text-black font-bold">
+                To Try
+              </Badge>
+            ) : aggregateRating > 0 ? (
+              <div className="bg-yellow-400 text-black text-sm font-bold rounded px-2 py-1 flex items-center">
+                <Star className="w-4 h-4 mr-1" />
+                {aggregateRating.toFixed(1)}
+              </div>
+            ) : null}
           </div>
-        )}
-      </div>
+          <div className="w-full h-48 bg-slate-200 rounded-t-xl flex items-center justify-center mb-4">
+            <span className="text-6xl font-bold text-slate-400">
+              {getInitials(restaurant.name)}
+            </span>
+          </div>
+          <CardTitle className="text-2xl mb-2">{restaurant.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
+            <div className="flex items-center">
+              <UtensilsCrossed className="w-4 h-4 mr-1" />
+              <span>{restaurant.restaurant_types?.name || 'N/A'}</span>
+            </div>
+            <div className="flex items-center">
+              <MapPin className="w-4 h-4 mr-1" />
+              <span>{restaurant.cities?.name || 'N/A'}</span>
+            </div>
+            <PriceDisplay price={restaurant.price} />
+          </div>
+          {restaurant.notes && (
+            <div className="mt-4 bg-gray-50 p-3 rounded-md">
+              <h4 className="font-semibold mb-2">Notes</h4>
+              <p className="text-gray-700">{restaurant.notes}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ratings & Reviews</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h4 className="text-lg font-semibold">Overall Rating</h4>
+              {aggregateRating > 0 ? (
+                <div className="flex items-center">
+                  <span className="text-3xl font-bold mr-2">{aggregateRating.toFixed(1)}</span>
+                  <Star className="w-6 h-6 text-yellow-400" />
+                </div>
+              ) : (
+                <p>No ratings yet</p>
+              )}
+              <p className="text-sm text-gray-500">Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}</p>
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold mb-2">Your Review</h4>
+              {userReview ? (
+                <div>
+                  <p className="font-bold">{userReview.rating}/10</p>
+                  <p className="text-sm text-gray-600 mb-2">{userReview.review}</p>
+                  <Button 
+                    onClick={() => {
+                      setReviewRating(userReview.rating);
+                      setReviewText(userReview.review || '');
+                      setIsReviewDialogOpen(true);
+                    }}
+                    size="sm"
+                  >
+                    Edit Review
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={() => setIsReviewDialogOpen(true)}>Add Review</Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
@@ -169,6 +262,37 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{userReview ? 'Edit' : 'Add'} Review</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please provide your rating and review for this restaurant.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <Input
+              type="number"
+              min="0"
+              max="10"
+              step="0.5"
+              value={reviewRating}
+              onChange={(e) => setReviewRating(parseFloat(e.target.value))}
+              placeholder="Rating (0-10)"
+            />
+            <Textarea
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="Your review"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReviewSubmit}>Submit Review</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
