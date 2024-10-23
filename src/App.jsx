@@ -112,6 +112,22 @@ function App() {
                 } 
               />
               <Route 
+                path="/user/:id" 
+                element={
+                  user ? (
+                    <RestaurantDashboard 
+                      user={user}
+                      filters={filters}
+                      setFilters={setFilters}
+                      sortOption={sortOption}
+                      setSortOption={setSortOption}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
                 path="/restaurant/:id" 
                 element={
                   user ? (

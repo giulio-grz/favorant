@@ -48,7 +48,9 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
   // Review data
   const [toTry, setToTry] = useState(false);
   const [rating, setRating] = useState(5);
-  const [review, setReview] = useState('');
+
+  // Add new state for note
+  const [initialNote, setInitialNote] = useState('');
 
   // UI state
   const [types, setTypes] = useState(initialTypes || []);
@@ -142,7 +144,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
     if (newTypeName.trim()) {
       try {
         const newType = await createRestaurantType({ 
-          name: newTypeName, 
+          name: newTypeName.trim(), 
           created_by: user.id,
           status: user.profile?.is_admin ? 'approved' : 'pending'
         });
@@ -156,12 +158,12 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
       }
     }
   };
-
+  
   const handleAddCity = async () => {
     if (newCityName.trim()) {
       try {
         const newCity = await createCity({ 
-          name: newCityName, 
+          name: newCityName.trim(), 
           created_by: user.id,
           status: user.profile?.is_admin ? 'approved' : 'pending'
         });
@@ -214,25 +216,53 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
         savedRestaurant = await updateRestaurant(id, restaurant);
         updateLocalRestaurant(savedRestaurant);
       } else {
-        savedRestaurant = await createRestaurant(restaurant, user.id, isToTry);
+        // Make sure to pass the user.id explicitly
+        savedRestaurant = await createRestaurant({
+          name: restaurant.name,
+          type_id: restaurant.type_id,
+          city_id: restaurant.city_id,
+          price: restaurant.price,
+          address: restaurant.address
+        }, user.id, isToTry);
+        
         addLocalRestaurant(savedRestaurant);
       }
-
+  
+      // Handle "To Try" case
       if (isToTry) {
+        await addBookmark(user.id, savedRestaurant.id, 'to_try');
         setSuccessMessage('Restaurant added to your "To Try" list.');
-      } else if (showReviewForm) {
+        setTimeout(() => navigate('/'), 2000);
+      } 
+      // Handle rating and note case
+      else if (!toTry && rating > 0) {
+        // Add the rating
         await addReview({
           user_id: user.id,
           restaurant_id: savedRestaurant.id,
-          rating: rating,
-          review: review
+          rating: rating
         });
-        setSuccessMessage('Restaurant and review added successfully.');
-      } else {
-        setSuccessMessage('Restaurant added successfully.');
+  
+        // Add the note if provided
+        if (initialNote.trim()) {
+          await supabase
+            .from('notes')
+            .insert({
+              user_id: user.id,
+              restaurant_id: savedRestaurant.id,
+              note: initialNote.trim()
+            });
+        }
+  
+        setSuccessMessage('Restaurant and rating added successfully.');
+        setTimeout(() => navigate('/'), 2000);
       }
-
-      setTimeout(() => navigate('/'), 2000);
+      // Handle base case (no rating or to try)
+      else {
+        setSuccessMessage('Restaurant added successfully.');
+        setTimeout(() => navigate('/'), 2000);
+      }
+  
     } catch (error) {
       console.error('Error saving restaurant:', error);
       setError(error.message);
@@ -467,7 +497,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
             <div className="space-y-4 pt-4">
               <div className="text-lg font-semibold">What would you like to do with this restaurant?</div>
               <div className="flex flex-col space-y-4">
-                <Button
+              <Button
                   variant={toTry ? "default" : "outline"}
                   className="w-full justify-start h-auto py-4"
                   onClick={() => {
@@ -487,7 +517,6 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
                   className="w-full justify-start h-auto py-4"
                   onClick={() => {
                     setToTry(false);
-                    setCurrentStep(4);
                   }}
                 >
                   <div className="flex flex-col items-start">
@@ -523,13 +552,12 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="review">Review</Label>
+              <Label>Add a Note (Optional)</Label>
               <Textarea
-                id="review"
-                value={review}
-                onChange={(e) => setReview(e.target.value)}
+                value={initialNote}
+                onChange={(e) => setInitialNote(e.target.value)}
+                placeholder="Add a personal note about this restaurant..."
                 rows={4}
-                placeholder="Share your thoughts about this restaurant..."
               />
             </div>
           </div>
@@ -562,7 +590,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
                 if (toTry) {
                   handleSubmit(true);
                 } else {
-                  handleNextStep();
+                  setCurrentStep(4);
                 }
               }}
             >
@@ -571,7 +599,12 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
           ) : currentStep < 4 ? (
             <Button onClick={handleNextStep}>Next</Button>
           ) : (
-            <Button onClick={() => handleSubmit(false)}>Add Restaurant</Button>
+            <Button 
+              onClick={() => handleSubmit(false)}
+              disabled={!rating && !toTry}
+            >
+              Add Restaurant
+            </Button>
           )}
         </CardFooter>
 

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { debounce } from 'lodash';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-import { getUserRestaurants, searchRestaurants, addBookmark, createRestaurant, removeRestaurantFromUserList } from '@/supabaseClient';
+import { supabase, getUserRestaurants, searchRestaurants, addBookmark, createRestaurant, removeRestaurantFromUserList } from '@/supabaseClient';
 import SearchBar from './components/SearchBar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,10 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Euro, MapPin, UtensilsCrossed, Star } from 'lucide-react';
+import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
-const RestaurantDashboard = ({ user }) => {
+const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOption }) => {
   const navigate = useNavigate();
+  const { id: viewingUserId } = useParams();
+  const [viewingUser, setViewingUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,11 +35,25 @@ const RestaurantDashboard = ({ user }) => {
   const [isRemovingRestaurant, setIsRemovingRestaurant] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: '', type: 'info' });
 
+  useEffect(() => {
+    const fetchViewingUser = async () => {
+      if (viewingUserId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', viewingUserId)
+          .single();
+        setViewingUser(profile);
+      }
+    };
+    fetchViewingUser();
+  }, [viewingUserId]);
+
   const fetchRestaurants = useCallback(async () => {
-    if (!user || !user.id) return;
+    if (!user) return;
     try {
       setLoading(true);
-      const fetchedRestaurants = await getUserRestaurants(user.id);
+      const fetchedRestaurants = await getUserRestaurants(viewingUserId || user.id);
       console.log("Fetched restaurants in component:", fetchedRestaurants);
       setRestaurants(fetchedRestaurants);
       setError(null);
@@ -47,7 +63,7 @@ const RestaurantDashboard = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, viewingUserId]);
 
   useEffect(() => {
     fetchRestaurants();
@@ -77,20 +93,17 @@ const RestaurantDashboard = ({ user }) => {
       const result = await addBookmark(user.id, restaurant.id);
       let message = 'Restaurant added to your list successfully.';
       let alertType = 'success';
-  
+      
       switch (result.status) {
         case 'reviewed':
         case 'exists':
         case 'added':
-          // Use the same success message for all cases
           break;
         default:
           throw new Error('Unexpected result from addBookmark');
       }
       
-      // Refresh the restaurant list regardless of the result
       await fetchRestaurants();
-      
       setAlert({ show: true, message: message, type: alertType });
       setSearchResults([]);
       setSearchQuery('');
@@ -100,34 +113,15 @@ const RestaurantDashboard = ({ user }) => {
     }
   }, [user.id, fetchRestaurants]);
 
-  const handleAddRestaurant = useCallback(async () => {
-    try {
-      const newRestaurant = await createRestaurant({
-        name: newRestaurantName,
-        address: newRestaurantAddress,
-        type_id: selectedType,
-        city_id: selectedCity,
-        price: selectedPrice
-      }, user.id);
-      setSelectedRestaurant(newRestaurant);
-      setIsAddingRestaurant(false);
-      setIsToTryDialogOpen(true);
-      fetchRestaurants();
-    } catch (error) {
-      console.error('Error adding restaurant:', error);
-      setAlert({ show: true, message: 'Failed to add restaurant. Please try again.', type: 'error' });
-    }
-  }, [newRestaurantName, newRestaurantAddress, selectedType, selectedCity, selectedPrice, user.id, fetchRestaurants]);
-
   const handleRemoveFromList = async (restaurantId) => {
     try {
       const result = await removeRestaurantFromUserList(user.id, restaurantId);
-  
       if (result.success) {
         setRestaurants(prevRestaurants => 
           prevRestaurants.filter(restaurant => restaurant.id !== restaurantId)
         );
         setAlert({ show: true, message: result.message, type: "success" });
+        setIsRemovingRestaurant(null);
       } else {
         throw new Error(result.message || 'Failed to remove restaurant');
       }
@@ -143,7 +137,7 @@ const RestaurantDashboard = ({ user }) => {
       (activeTab === 'toTry' && restaurant.is_to_try) ||
       (activeTab === 'visited' && !restaurant.is_to_try);
     
-    const matchesSearch = 
+    const matchesSearch = !searchQuery || 
       restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       restaurant.restaurant_types?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       restaurant.cities?.name?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -151,21 +145,28 @@ const RestaurantDashboard = ({ user }) => {
     return matchesTab && matchesSearch;
   });
 
-  const getPriceSymbol = (price) => {
-    return '€'.repeat(price || 0);
-  };
-
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message={error} />;
 
   return (
     <div className="space-y-6">
+      {viewingUserId && viewingUser && (
+        <div className="flex items-center space-x-4 mb-8">
+          <Avatar className="h-16 w-16">
+            <AvatarFallback className="bg-slate-100 text-slate-500 text-xl">
+              {viewingUser.username?.substring(0, 2).toUpperCase() || <User className="h-8 w-8" />}
+            </AvatarFallback>
+          </Avatar>
+          <h1 className="text-2xl font-bold">{viewingUser.username}</h1>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="toTry">To Try</TabsTrigger>
             <TabsTrigger value="visited">Visited</TabsTrigger>
+            <TabsTrigger value="toTry">To Try</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="w-full sm:w-64">
@@ -173,101 +174,43 @@ const RestaurantDashboard = ({ user }) => {
         </div>
       </div>
 
-      {searchResults.length > 0 ? (
-        <div className="mt-4">
-          <h3 className="text-lg font-semibold mb-2">Search Results:</h3>
-          <div className="space-y-4">
-            {searchResults.map((result) => (
-              <Card key={result.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle>{result.name}</CardTitle>
-                  <CardDescription>{result.address}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p>{result.cities?.name}</p>
-                  <p>{result.restaurant_types?.name}</p>
-                  <Button onClick={() => handleAddToList(result)}>Add to My List</Button>
-                </CardContent>
-              </Card>
-            ))}
+      <div className="space-y-4">
+      {filteredRestaurants.map((restaurant) => (
+        <div 
+          key={restaurant.id} 
+          className="cursor-pointer hover:bg-slate-50 transition-all"
+          onClick={() => handleRestaurantClick(restaurant.id)}
+        >
+          <div className="flex items-start p-4 relative">
+            <div className="h-16 w-16 bg-slate-100 rounded-lg flex items-center justify-center text-xl font-semibold text-slate-500 relative">
+              {restaurant.name.substring(0, 2).toUpperCase()}
+              {restaurant.is_to_try && (
+                <div className="absolute -bottom-2 -right-2">
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 text-[10px] px-1 py-0.5 leading-normal rounded-full">
+                    To Try
+                  </Badge>
+                </div>
+              )}
+              {!restaurant.is_to_try && restaurant.aggregate_rating && (
+                <div className="absolute -bottom-2 -right-2 bg-white rounded-full px-2 py-0.5 text-sm border">
+                  {restaurant.aggregate_rating.toFixed(1)}
+                </div>
+              )}
+            </div>
+            <div className="ml-4 flex-1">
+              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+              <div className="text-sm text-gray-500 space-y-0.5">
+                <div>{restaurant.restaurant_types?.name}</div>
+                <div>{restaurant.cities?.name}</div>
+              </div>
+            </div>
+            <div className="text-sm text-gray-400">
+              {'€'.repeat(restaurant.price || 0)}
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredRestaurants.map((restaurant) => (
-            <Card key={restaurant.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleRestaurantClick(restaurant.id)}>
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex-grow">
-                  <h3 className="text-lg font-semibold mb-2">{restaurant.name}</h3>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
-                    <span>{restaurant.restaurant_types?.name || 'Type: N/A'}</span>
-                    <span className="text-gray-300">·</span>
-                    <span>{restaurant.cities?.name || 'City: N/A'}</span>
-                    <span className="text-gray-300">·</span>
-                    <span>{getPriceSymbol(restaurant.price) || 'Price: N/A'}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end space-y-2">
-                  {restaurant.is_to_try ? (
-                    <Badge variant="secondary">To Try</Badge>
-                  ) : (
-                    <span>
-                      {restaurant.aggregate_rating ? 
-                        `${restaurant.aggregate_rating.toFixed(1)}/10` : 
-                        (restaurant.restaurant_reviews && restaurant.restaurant_reviews.length > 0 ? 
-                          `${restaurant.restaurant_reviews[0].rating}/10` : 
-                          'Not Rated'
-                        )
-                      }
-                    </span>
-                  )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsRemovingRestaurant(restaurant);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {searchQuery.length > 2 && searchResults.length === 0 && (
-        <div className="mt-4">
-          <p>No restaurants found. Would you like to add "{searchQuery}"?</p>
-          <Button onClick={() => setIsAddingRestaurant(true)}>Add New Restaurant</Button>
-        </div>
-      )}
-
-      <Dialog open={isAddingRestaurant} onOpenChange={setIsAddingRestaurant}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Restaurant</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input
-              placeholder="Restaurant Name"
-              value={newRestaurantName}
-              onChange={(e) => setNewRestaurantName(e.target.value)}
-            />
-            <Input
-              placeholder="Address"
-              value={newRestaurantAddress}
-              onChange={(e) => setNewRestaurantAddress(e.target.value)}
-            />
-            {/* Add inputs for type, city, and price */}
-          </div>
-          <DialogFooter>
-            <Button onClick={handleAddRestaurant}>Add Restaurant</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      ))}
+      </div>
 
       <AlertDialog open={isRemovingRestaurant !== null} onOpenChange={() => setIsRemovingRestaurant(null)}>
         <AlertDialogContent>

@@ -266,8 +266,12 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
     console.log('Is To Try:', isToTry);
 
     const dataToInsert = {
-      ...restaurantData,
-      created_by: userId
+      name: restaurantData.name,
+      type_id: restaurantData.type_id,
+      city_id: restaurantData.city_id,
+      price: restaurantData.price,
+      address: restaurantData.address,
+      created_by: userId  // Make sure this is explicitly set
     };
 
     console.log('Data to insert:', JSON.stringify(dataToInsert, null, 2));
@@ -275,26 +279,16 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
     const { data, error } = await supabase
       .from('restaurants')
       .insert(dataToInsert)
-      .select();
+      .select()
+      .single();
 
     if (error) {
       console.error('Supabase error:', error);
       throw error;
     }
 
-    console.log('Restaurant created:', data[0]);
-
-    if (isToTry) {
-      try {
-        await addBookmark(userId, data[0].id, 'to_try');
-        console.log('Added to "To Try" list');
-      } catch (bookmarkError) {
-        console.error('Failed to add bookmark:', bookmarkError);
-        // You might want to handle this error differently, maybe set a flag in the UI
-      }
-    }
-
-    return data[0];
+    console.log('Restaurant created:', data);
+    return data;
   } catch (error) {
     console.error('Error creating restaurant:', error);
     throw error;
@@ -382,7 +376,7 @@ export const addBookmark = async (userId, restaurantId, type = 'favorite') => {
   }
 };
 
-export const addReview = async ({ user_id, restaurant_id, rating, review }) => {
+export const addReview = async ({ user_id, restaurant_id, rating }) => {
   try {
     // First, remove the 'to_try' bookmark if it exists
     const { error: bookmarkError } = await supabase
@@ -409,7 +403,7 @@ export const addReview = async ({ user_id, restaurant_id, rating, review }) => {
       // Update existing review
       const { data, error } = await supabase
         .from('restaurant_reviews')
-        .update({ rating, review })
+        .update({ rating })
         .eq('id', existingReview.id)
         .select();
 
@@ -419,7 +413,7 @@ export const addReview = async ({ user_id, restaurant_id, rating, review }) => {
       // Add new review
       const { data, error } = await supabase
         .from('restaurant_reviews')
-        .insert({ user_id, restaurant_id, rating, review })
+        .insert({ user_id, restaurant_id, rating })
         .select();
 
       if (error) throw error;
