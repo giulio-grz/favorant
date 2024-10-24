@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
-import { PlusCircle, Filter, Settings } from 'lucide-react';
+import { PlusCircle, Filter, Settings, Shield } from 'lucide-react';
 import UserMenu from './UserMenu';
 import UserSearch from './UserSearch';
 import MobileMenu from '../features/restaurants/MobileMenu';
@@ -39,6 +39,12 @@ const Header = ({ user, setUser }) => {
             <Settings className="mr-2 h-4 w-4" />
             Settings
           </Button>
+          {user.profile.is_admin && (
+            <Button onClick={() => navigate('/admin')} size="sm" variant="outline">
+              <Shield className="mr-2 h-4 w-4" />
+              Admin
+            </Button>
+          )}
           <UserMenu user={user} setUser={setUser} />
         </div>
         <div className="md:hidden">

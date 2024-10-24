@@ -1,507 +1,695 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Label } from '../../../components/ui/label';
-import { Textarea } from '../../../components/ui/textarea';
-import { Slider } from '../../../components/ui/slider';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../components/ui/accordion';
-import { Switch } from '../../../components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../../components/ui/dropdown-menu';
-import { Edit, Trash, MoreVertical } from 'lucide-react';
-import { supabase } from '../../../supabaseClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Check, ChevronsUpDown, Euro, MapPin, UtensilsCrossed, Search, Plus, ArrowRight, Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { supabase, createRestaurant, updateRestaurant, getRestaurantTypes, getCities, createCity, createRestaurantType, searchRestaurants, addBookmark, addReview, getUserRestaurantData } from '@/supabaseClient';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../../components/ui/alert-dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const AddEditRestaurant = ({ 
-  user,
-  types, 
-  cities, 
-  addType, 
-  editType, 
-  deleteType, 
-  addCity, 
-  editCity, 
-  deleteCity,
-  updateLocalRestaurant,
-  addLocalRestaurant
-}) => {
+const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, restaurants, addLocalRestaurant, updateLocalRestaurant }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
 
+  // Main state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showToTryStep, setShowToTryStep] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+
+  // Restaurant data
   const [restaurant, setRestaurant] = useState({
     name: '',
     type_id: null,
     city_id: null,
-    rating: 5,
     price: 1,
-    notes: '',
-    to_try: false
+    address: '',
   });
 
-  const [isAddTypeDialogOpen, setIsAddTypeDialogOpen] = useState(false);
-  const [isAddCityDialogOpen, setIsAddCityDialogOpen] = useState(false);
-  const [isEditTypeDialogOpen, setIsEditTypeDialogOpen] = useState(false);
-  const [isEditCityDialogOpen, setIsEditCityDialogOpen] = useState(false);
-  const [isDeleteTypeDialogOpen, setIsDeleteTypeDialogOpen] = useState(false);
-  const [isDeleteCityDialogOpen, setIsDeleteCityDialogOpen] = useState(false);
+  // Review data
+  const [toTry, setToTry] = useState(false);
+  const [rating, setRating] = useState(5);
+
+  // Add new state for note
+  const [initialNote, setInitialNote] = useState('');
+
+  // UI state
+  const [types, setTypes] = useState(initialTypes || []);
+  const [cities, setCities] = useState(initialCities || []);
+  const [openCity, setOpenCity] = useState(false);
+  const [openType, setOpenType] = useState(false);
+  const [isAddingType, setIsAddingType] = useState(false);
+  const [isAddingCity, setIsAddingCity] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newCityName, setNewCityName] = useState('');
-  const [editingType, setEditingType] = useState(null);
-  const [editingCity, setEditingCity] = useState(null);
-  const [deletingType, setDeletingType] = useState(null);
-  const [deletingCity, setDeletingCity] = useState(null);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
-    if (isEditing) {
-      const fetchRestaurant = async () => {
-        const { data, error } = await supabase
-          .from('restaurants')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching restaurant:', error);
-        } else if (data) {
-          setRestaurant(data);
+    if (isEditing && id) {
+      // Fetch restaurant data if editing
+      const fetchRestaurantData = async () => {
+        try {
+          const data = await getUserRestaurantData(user.id, id);
+          if (data) {
+            setRestaurant({
+              name: data.name,
+              type_id: data.type_id,
+              city_id: data.city_id,
+              price: data.price,
+              address: data.address,
+            });
+          }
+        } catch (error) {
+          setError('Failed to fetch restaurant data');
         }
       };
-
-      fetchRestaurant();
+      fetchRestaurantData();
     }
-  }, [id, isEditing]);
+  }, [isEditing, id, user.id]);
+
+  // Handlers
+  const handleSearch = async (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    if (query.length > 2) {
+      setSearchLoading(true);
+      try {
+        const results = await searchRestaurants(query);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Error searching restaurants:', error);
+        setError('Failed to search restaurants. Please try again.');
+      } finally {
+        setSearchLoading(false);
+      }
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleAddNew = () => {
+    if (searchQuery.trim()) {
+      setShowAddForm(true);
+      setRestaurant(prev => ({
+        ...prev,
+        name: searchQuery.trim()
+      }));
+      setCurrentStep(2);
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleSelectRestaurant = (restaurant) => {
+    setSelectedRestaurant(restaurant);
+    setRestaurant({
+      id: restaurant.id, // Make sure to include the ID
+      name: restaurant.name,
+      type_id: restaurant.type_id, // Use direct type_id instead of restaurant_types?.id
+      city_id: restaurant.city_id, // Use direct city_id instead of cities?.id
+      price: restaurant.price || 1,
+      address: restaurant.address
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+    setCurrentStep(3);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setRestaurant(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSwitchChange = (checked) => {
-    setRestaurant(prev => ({ ...prev, to_try: checked }));
-  };
-
-  const handleTypeClick = (typeId) => {
-    setRestaurant(prev => ({ ...prev, type_id: typeId }));
-  };
-
-  const handleCityClick = (cityId) => {
-    setRestaurant(prev => ({ ...prev, city_id: cityId }));
-  };
-
   const handleAddType = async () => {
     if (newTypeName.trim()) {
-      const newType = await addType(newTypeName.trim());
-      setRestaurant(prev => ({ ...prev, type_id: newType.id }));
-      setNewTypeName('');
-      setIsAddTypeDialogOpen(false);
+      try {
+        const newType = await createRestaurantType({ 
+          name: newTypeName.trim(), 
+          created_by: user.id,
+          status: user.profile?.is_admin ? 'approved' : 'pending'
+        });
+        await refreshTypesAndCities(); // Add this line
+        setRestaurant(prev => ({ ...prev, type_id: newType.id }));
+        setNewTypeName('');
+        setIsAddingType(false);
+      } catch (error) {
+        console.error('Error adding type:', error);
+        setError(`Failed to add type: ${error.message}`);
+      }
     }
   };
-
+  
   const handleAddCity = async () => {
     if (newCityName.trim()) {
-      const newCity = await addCity(newCityName.trim());
-      setRestaurant(prev => ({ ...prev, city_id: newCity.id }));
-      setNewCityName('');
-      setIsAddCityDialogOpen(false);
-    }
-  };
-
-  const handleEditType = async () => {
-    if (editingType && newTypeName.trim()) {
-      await editType(editingType.id, newTypeName.trim());
-      setNewTypeName('');
-      setIsEditTypeDialogOpen(false);
-      setEditingType(null);
-    }
-  };
-
-  const handleEditCity = async () => {
-    if (editingCity && newCityName.trim()) {
-      await editCity(editingCity.id, newCityName.trim());
-      setNewCityName('');
-      setIsEditCityDialogOpen(false);
-      setEditingCity(null);
-    }
-  };
-
-  const handleDeleteType = async () => {
-    if (deletingType) {
-      await deleteType(deletingType.id);
-      if (restaurant.type_id === deletingType.id) {
-        setRestaurant(prev => ({ ...prev, type_id: null }));
-      }
-      setIsDeleteTypeDialogOpen(false);
-      setDeletingType(null);
-    }
-  };
-
-  const handleDeleteCity = async () => {
-    if (deletingCity) {
-      await deleteCity(deletingCity.id);
-      if (restaurant.city_id === deletingCity.id) {
-        setRestaurant(prev => ({ ...prev, city_id: null }));
-      }
-      setIsDeleteCityDialogOpen(false);
-      setDeletingCity(null);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (restaurant.name && restaurant.type_id && restaurant.city_id) {
       try {
-        const restaurantData = { ...restaurant, user_id: user.id };
-        let savedRestaurant;
-
-        if (isEditing) {
-          const { data, error } = await supabase
-            .from('restaurants')
-            .update(restaurantData)
-            .eq('id', id)
-            .select()
-            .single();
-
-          if (error) throw error;
-          savedRestaurant = data;
-          updateLocalRestaurant(savedRestaurant);
-        } else {
-          const { data, error } = await supabase
-            .from('restaurants')
-            .insert([restaurantData])
-            .select()
-            .single();
-
-          if (error) throw error;
-          savedRestaurant = data;
-          addLocalRestaurant(savedRestaurant);
-        }
-
-        navigate('/');
+        const newCity = await createCity({ 
+          name: newCityName.trim(), 
+          created_by: user.id,
+          status: user.profile?.is_admin ? 'approved' : 'pending'
+        });
+        await refreshTypesAndCities(); // Add this line
+        setRestaurant(prev => ({ ...prev, city_id: newCity.id }));
+        setNewCityName('');
+        setIsAddingCity(false);
       } catch (error) {
-        console.error('Error saving restaurant:', error);
-        alert('Failed to save restaurant: ' + error.message);
+        console.error('Error adding city:', error);
+        setError(`Failed to add city: ${error.message}`);
       }
-    } else {
-      alert('Please fill in all required fields');
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold">{isEditing ? 'Edit Restaurant' : 'Add New Restaurant'}</h2>
-      </div>
+  const handleToTrySelection = async (isToTry) => {
+    setToTry(isToTry);
+    if (isToTry) {
+      await handleSubmit(true);
+    } else {
+      setShowReviewForm(true);
+      setCurrentStep(4);
+    }
+  };
+
+  const refreshTypesAndCities = async () => {
+    try {
+      const { data: typesData, error: typesError } = await supabase
+        .from('restaurant_types')
+        .select('*');
       
-      <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" value={restaurant.name} onChange={handleInputChange} required />
-      </div>
-      
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="type">
-          <AccordionTrigger className="text-sm">Type</AccordionTrigger>
-          <AccordionContent>
-            <div className="flex flex-wrap gap-2">
-              {types.map((type) => (
-                <div key={type.id} className="flex items-center">
-                  <Button
-                    type="button"
-                    variant={restaurant.type_id === type.id ? "default" : "outline"}
-                    onClick={() => handleTypeClick(type.id)}
-                    className="rounded-r-none"
-                  >
-                    {type.name}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant={restaurant.type_id === type.id ? "default" : "outline"}
-                        className="rounded-l-none border-l-0 px-2"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => {
-                        setEditingType(type);
-                        setNewTypeName(type.name);
-                        setIsEditTypeDialogOpen(true);
-                      }}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        setDeletingType(type);
-                        setIsDeleteTypeDialogOpen(true);
-                      }}>
-                        <Trash className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
-              <Button type="button" variant="outline" onClick={() => setIsAddTypeDialogOpen(true)}>
-                + Add New
-              </Button>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-      
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="city">
-          <AccordionTrigger className="text-sm">City</AccordionTrigger>
-          <AccordionContent>
-            <div className="flex flex-wrap gap-2">
-              {cities.map((city) => (
-                <div key={city.id} className="flex items-center">
-                  <Button
-                    type="button"
-                    variant={restaurant.city_id === city.id ? "default" : "outline"}
-                    onClick={() => handleCityClick(city.id)}
-                    className="rounded-r-none"
-                  >
-                    {city.name}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant={restaurant.city_id === city.id ? "default" : "outline"}
-                        className="rounded-l-none border-l-0 px-2"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => {
-                        setEditingCity(city);
-                        setNewCityName(city.name);
-                        setIsEditCityDialogOpen(true);
-                      }}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        setDeletingCity(city);
-                        setIsDeleteCityDialogOpen(true);
-                      }}>
-                        <Trash className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
-              <Button type="button" variant="outline" onClick={() => setIsAddCityDialogOpen(true)}>
-                + Add New
-              </Button>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-      
-      <div className="space-y-2">
-        <Label>Price</Label>
-        <div className="flex space-x-2">
-          {[1, 2, 3].map((value) => (
-            <Button
-              key={value}
-              type="button"
-              onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
-              variant={restaurant.price === value ? "default" : "outline"}
-            >
-              {'€'.repeat(value)}
-            </Button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="to-try"
-          checked={restaurant.to_try}
-          onCheckedChange={handleSwitchChange}
-        />
-        <Label htmlFor="to-try">To Try</Label>
-      </div>
-      
-      {!restaurant.to_try && (
-        <div className="space-y-2">
-          <Label>Rating: {restaurant.rating === 10 ? '10' : restaurant.rating.toFixed(1)}/10</Label>
-          <Slider
-            min={0}
-            max={10}
-            step={0.5}
-            value={[restaurant.rating]}
-            onValueChange={(value) => setRestaurant(prev => ({ ...prev, rating: value[0] }))}
-          />
-        </div>
-      )}
-      
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          name="notes"
-          value={restaurant.notes}
-          onChange={handleInputChange}
-          rows={3}
-        />
-      </div>
-      
-      <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={() => navigate('/')}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {isEditing ? 'Update' : 'Add'} Restaurant
-        </Button>
-      </div>
+      if (typesError) throw typesError;
+      setTypes(typesData);
   
-      <Dialog open={isAddTypeDialogOpen} onOpenChange={setIsAddTypeDialogOpen}>
+      const { data: citiesData, error: citiesError } = await supabase
+        .from('cities')
+        .select('*');
+      
+      if (citiesError) throw citiesError;
+      setCities(citiesData);
+    } catch (error) {
+      console.error('Error refreshing types and cities:', error);
+    }
+  };
+
+  const validateStep = (step) => {
+    switch (step) {
+      case 2:
+        return restaurant.name.trim() !== '' && restaurant.address.trim() !== '';
+      case 3:
+        return restaurant.city_id !== null && restaurant.type_id !== null;
+      default:
+        return true;
+    }
+  };
+
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      setError('Please fill in all required fields');
+    }
+  };
+
+  const handleSubmit = async (isToTry = false) => {
+    setError(null);
+    setSuccessMessage('');
+    try {
+      let savedRestaurant;
+      
+      if (selectedRestaurant) {
+        // If we're adding an existing restaurant, use it directly
+        savedRestaurant = selectedRestaurant;
+      } else if (isEditing) {
+        savedRestaurant = await updateRestaurant(id, restaurant);
+        updateLocalRestaurant(savedRestaurant);
+      } else {
+        savedRestaurant = await createRestaurant({
+          name: restaurant.name,
+          type_id: restaurant.type_id,
+          city_id: restaurant.city_id,
+          price: restaurant.price,
+          address: restaurant.address
+        }, user.id);
+      }
+  
+      // Always create a bookmark when adding to list
+      if (isToTry) {
+        // Add to "To Try" list
+        const { error: bookmarkError } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            restaurant_id: savedRestaurant.id,
+            type: 'to_try'
+          });
+  
+        if (bookmarkError) throw bookmarkError;
+        
+      } else if (!toTry && rating > 0) {
+        // Add review
+        await addReview({
+          user_id: user.id,
+          restaurant_id: savedRestaurant.id,
+          rating: rating
+        });
+  
+        // Add bookmark as favorite
+        const { error: bookmarkError } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            restaurant_id: savedRestaurant.id,
+            type: 'favorite'
+          });
+  
+        if (bookmarkError) throw bookmarkError;
+  
+        if (initialNote.trim()) {
+          const { error: noteError } = await supabase
+            .from('notes')
+            .insert({
+              user_id: user.id,
+              restaurant_id: savedRestaurant.id,
+              note: initialNote.trim()
+            });
+  
+          if (noteError) throw noteError;
+        }
+      }
+  
+      addLocalRestaurant(savedRestaurant);
+      setSuccessMessage(isToTry ? 'Restaurant added to your "To Try" list.' : 'Restaurant and review added successfully.');
+      setTimeout(() => navigate('/'), 2000);
+  
+    } catch (error) {
+      console.error('Error saving restaurant:', error);
+      setError(error.message);
+    }
+  };
+
+  // Render helpers
+  const renderStepIndicator = () => {
+    const totalSteps = showReviewForm ? 4 : 3;
+    const progress = (currentStep / totalSteps) * 100;
+    
+    return (
+      <div className="mb-8 space-y-2">
+        <Progress value={progress} />
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <span>Search</span>
+          <span>Details</span>
+          <span>Confirm</span>
+          {showReviewForm && <span>Review</span>}
+        </div>
+      </div>
+    );
+  };
+
+  // Step 1: Search or Start New
+  if (currentStep === 1) {
+    return (
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Add Restaurant</CardTitle>
+          <CardDescription>Search for an existing restaurant or add a new one</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-10"
+              placeholder="Search restaurants..."
+              value={searchQuery}
+              onChange={handleSearch}
+            />
+          </div>
+
+          {searchLoading && (
+            <div className="text-center text-sm text-muted-foreground">
+              Searching...
+            </div>
+          )}
+
+          {searchResults.length > 0 && (
+            <div className="border rounded-lg divide-y">
+              {searchResults.map((result) => {
+                const isInUserList = restaurants.some(r => r.id === result.id);
+                
+                return (
+                  <div
+                    key={result.id}
+                    className="p-4 hover:bg-slate-50 cursor-pointer flex items-center justify-between"
+                    onClick={() => {
+                      if (isInUserList) {
+                        navigate(`/restaurant/${result.id}`);
+                      } else {
+                        handleSelectRestaurant(result);
+                      }
+                    }}
+                  >
+                    <div>
+                      <div className="font-medium">{result.name}</div>
+                      <div className="text-sm text-muted-foreground">{result.address}</div>
+                      {result.restaurant_types?.name && (
+                        <Badge variant="secondary" className="mt-1">
+                          {result.restaurant_types.name}
+                        </Badge>
+                      )}
+                      {isInUserList && (
+                        <Badge variant="outline" className="ml-2">Already in your list</Badge>
+                      )}
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {searchQuery.length > 2 && searchResults.length === 0 && !searchLoading && (
+            <div className="text-center p-6 border rounded-lg">
+              <p className="text-sm text-muted-foreground mb-4">
+                No restaurants found matching "{searchQuery}"
+              </p>
+              <Button onClick={handleAddNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add as New Restaurant
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Main Form Steps
+  return (
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>
+          {selectedRestaurant ? 'Add to Your List' : (isEditing ? 'Edit' : 'Add')} Restaurant
+        </CardTitle>
+        <CardDescription>
+          {currentStep === 2 && 'Enter basic restaurant information'}
+          {currentStep === 3 && (selectedRestaurant ? 
+            'Choose how you want to add this restaurant to your list' : 
+            'Specify restaurant details')}
+          {currentStep === 4 && 'Add your review'}
+        </CardDescription>
+        {renderStepIndicator()}
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Step 2: Basic Info */}
+        {currentStep === 2 && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Restaurant Name</Label>
+              <Input
+                id="name"
+                name="name"
+                value={restaurant.name}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                name="address"
+                value={restaurant.address}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Price Range</Label>
+              <div className="flex space-x-2">
+                {[1, 2, 3].map((value) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
+                    variant={restaurant.price === value ? "default" : "outline"}
+                    className="flex-1"
+                  >
+                    {'€'.repeat(value)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Location & Type */}
+        {currentStep === 3 && (
+          <div className="space-y-6">
+            {/* Only show city and type fields if it's a new restaurant */}
+            {!selectedRestaurant && (
+              <>
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <div className="flex space-x-2">
+                    <Select
+                      value={restaurant.city_id?.toString() || ''}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
+                          setIsAddingCity(true);
+                        } else {
+                          setRestaurant(prev => ({ ...prev, city_id: parseInt(value) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select city" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map((city) => (
+                          <SelectItem key={city.id} value={city.id.toString()}>
+                            {city.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-blue-600">
+                          <Plus className="mr-2 h-4 w-4 inline" />
+                          Add new city
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <div className="flex space-x-2">
+                    <Select
+                      value={restaurant.type_id?.toString() || ''}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
+                          setIsAddingType(true);
+                        } else {
+                          setRestaurant(prev => ({ ...prev, type_id: parseInt(value) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {types.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-blue-600">
+                          <Plus className="mr-2 h-4 w-4 inline" />
+                          Add new type
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Always show the "What would you like to do" section */}
+            <div className="space-y-4 pt-4">
+              <div className="text-lg font-semibold">What would you like to do with this restaurant?</div>
+              <div className="flex flex-col space-y-4">
+                <Button
+                  variant={toTry ? "default" : "outline"}
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => setToTry(true)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-semibold">Add to "To Try" List</span>
+                    <span className="text-sm text-muted-foreground">
+                      Save this restaurant to try later
+                    </span>
+                  </div>
+                </Button>
+
+                <Button
+                  variant={!toTry ? "default" : "outline"}
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => setToTry(false)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-semibold">Add Review</span>
+                    <span className="text-sm text-muted-foreground">
+                      I've visited this restaurant and want to add a review
+                    </span>
+                  </div>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review */}
+        {currentStep === 4 && (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label>Rating</Label>
+              <div className="flex items-center space-x-4">
+                <Slider
+                  min={0}
+                  max={10}
+                  step={0.5}
+                  value={[rating]}
+                  onValueChange={(value) => setRating(value[0])}
+                  className="flex-1"
+                />
+                <div className="w-16 text-right font-medium">
+                  {rating === 10 ? '10' : rating.toFixed(1)}/10
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Add a Note (Optional)</Label>
+              <Textarea
+                value={initialNote}
+                onChange={(e) => setInitialNote(e.target.value)}
+                placeholder="Add a personal note about this restaurant..."
+                rows={4}
+              />
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
+            {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="bg-green-50 text-green-600 px-4 py-3 rounded-md text-sm">
+            {successMessage}
+          </div>
+        )}
+        </CardContent>
+
+        <CardFooter className="flex justify-between">
+          <Button
+            variant="outline"
+            onClick={() => currentStep > 1 ? setCurrentStep(prev => prev - 1) : navigate('/')}
+          >
+            {currentStep > 1 ? 'Back' : 'Cancel'}
+          </Button>
+          
+          {currentStep === 3 ? (
+            <Button 
+              onClick={() => {
+                if (toTry) {
+                  handleSubmit(true);
+                } else {
+                  setCurrentStep(4);
+                }
+              }}
+            >
+              {toTry ? 'Add Restaurant' : 'Next'}
+            </Button>
+          ) : currentStep < 4 ? (
+            <Button onClick={handleNextStep}>Next</Button>
+          ) : (
+            <Button 
+              onClick={() => handleSubmit(false)}
+              disabled={!rating && !toTry}
+            >
+              Add Restaurant
+            </Button>
+          )}
+        </CardFooter>
+
+      {/* Dialogs */}
+      <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Type</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="newTypeName">Type Name</Label>
+          <div className="py-4">
+            <Label>Type Name</Label>
             <Input
-              id="newTypeName"
-              value={newTypeName}
-              onChange={(e) => setNewTypeName(e.target.value)}
-              placeholder="Enter new type name"
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsAddTypeDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleAddType}>
-              Add Type
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-  
-      <Dialog open={isAddCityDialogOpen} onOpenChange={setIsAddCityDialogOpen}>
-      <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New City</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="newCityName">City Name</Label>
-            <Input
-              id="newCityName"
-              value={newCityName}
-              onChange={(e) => setNewCityName(e.target.value)}
-              placeholder="Enter new city name"
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsAddCityDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleAddCity}>
-              Add City
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-  
-      <Dialog open={isEditTypeDialogOpen} onOpenChange={setIsEditTypeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Type</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="editTypeName">Type Name</Label>
-            <Input
-              id="editTypeName"
               value={newTypeName}
               onChange={(e) => setNewTypeName(e.target.value)}
               placeholder="Enter type name"
+              className="mt-2"
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsEditTypeDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsAddingType(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleEditType}>
-              Update Type
-            </Button>
+            <Button onClick={handleAddType}>Add Type</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-  
-      <Dialog open={isEditCityDialogOpen} onOpenChange={setIsEditCityDialogOpen}>
+
+      <Dialog open={isAddingCity} onOpenChange={setIsAddingCity}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit City</DialogTitle>
+            <DialogTitle>Add New City</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="editCityName">City Name</Label>
+          <div className="py-4">
+            <Label>City Name</Label>
             <Input
-              id="editCityName"
               value={newCityName}
               onChange={(e) => setNewCityName(e.target.value)}
               placeholder="Enter city name"
+              className="mt-2"
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsEditCityDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsAddingCity(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleEditCity}>
-              Update City
-            </Button>
+            <Button onClick={handleAddCity}>Add City</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={isDeleteTypeDialogOpen} onOpenChange={setIsDeleteTypeDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this type?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the type and remove it from any restaurants that use it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteType} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={isDeleteCityDialogOpen} onOpenChange={setIsDeleteCityDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this city?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the city and remove it from any restaurants that use it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCity} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </form>
+    </Card>
   );
 };
 
