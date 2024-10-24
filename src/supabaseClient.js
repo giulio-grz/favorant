@@ -876,4 +876,24 @@ export const deleteType = async (id) => {
   }
 };
 
+export const addNote = async ({ user_id, restaurant_id, note }) => {
+  try {
+    const { data, error } = await supabase
+      .from('notes')
+      .insert([{
+        user_id,
+        restaurant_id,
+        note
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error adding note:', error);
+    throw error;
+  }
+};
+
 export default supabase;
