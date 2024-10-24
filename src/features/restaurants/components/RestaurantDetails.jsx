@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -23,18 +23,50 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Edit, Trash2, MoreVertical, Star } from 'lucide-react';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
-import { useRestaurantOperations } from '../hooks/useRestaurantOperations';
 import RestaurantNotes from './RestaurantNotes';
+import { 
+  supabase,
+  removeRestaurantFromUserList,
+  addReview
+} from '@/supabaseClient';
 
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
-  const { id } = useParams();
+  const { id, userId: viewingUserId } = useParams();
   const navigate = useNavigate();
-  const { restaurant, loading, error, refetch } = useRestaurantDetails(id);
-  const { deleteRestaurant } = useRestaurantOperations();
+  const { restaurant, loading, error, refetch } = useRestaurantDetails(id, viewingUserId);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [alert, setAlert] = useState({ show: false, message: '', type: 'info' });
+  const [isInUserList, setIsInUserList] = useState(false);
+
+  useEffect(() => {
+    const checkUserList = async () => {
+      try {
+        // Check for bookmark
+        const { data: bookmark } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('restaurant_id', id)
+          .maybeSingle();
+
+        // Check for review
+        const { data: review } = await supabase
+          .from('restaurant_reviews')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('restaurant_id', id)
+          .maybeSingle();
+
+        setIsInUserList(!!(bookmark || review));
+      } catch (error) {
+        console.error('Error checking user list:', error);
+      }
+    };
+
+    checkUserList();
+  }, [user.id, id]);
 
   const formatRating = (rating) => {
     return Number.isInteger(rating) ? rating.toFixed(1) : rating.toFixed(1);
@@ -55,10 +87,16 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
   const userReview = useMemo(() => {
     if (!restaurant || !restaurant.restaurant_reviews) return null;
-    return restaurant.restaurant_reviews.find(review => review.user_id === user.id);
-  }, [restaurant, user.id]);
+    return restaurant.restaurant_reviews.find(review => 
+      viewingUserId 
+        ? review.user_id === viewingUserId 
+        : review.user_id === user.id
+    );
+  }, [restaurant, user.id, viewingUserId]);
 
   const handleReviewSubmit = async () => {
+    if (viewingUserId) return; // Don't allow review submission when viewing other's profile
+    
     try {
       const result = await addReview({
         user_id: user.id,
@@ -76,21 +114,23 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   };
 
   const handleRemoveFromList = async (restaurantId) => {
+    if (viewingUserId) return; // Don't allow removal when viewing other's profile
+
     try {
-      const result = await deleteRestaurant(restaurantId);
+      const result = await removeRestaurantFromUserList(user.id, restaurantId);
       if (result.success) {
-        navigate('/');
-        deleteLocalRestaurant(restaurantId);
+        deleteLocalRestaurant(restaurantId); // Make sure this is being called
+        navigate('/'); // Navigate back to main list
       } else {
-        throw new Error(result.message || 'Failed to remove restaurant');
+        throw new Error('Failed to remove restaurant');
       }
     } catch (error) {
-      console.error('Error removing restaurant:', error);
+      console.error('Error removing restaurant from list:', error);
       setAlert({ show: true, message: 'Failed to remove restaurant', type: 'error' });
     }
-  };
+  };  
 
-  const isOwner = restaurant?.user_id === user.id;
+  const isOwner = restaurant?.created_by === user.id;
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -107,23 +147,25 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {isOwner && (
-              <DropdownMenuItem onClick={() => navigate(`/edit/${restaurant.id}`)}>
-                <Edit className="mr-2 h-4 w-4" /> Edit
+        {!viewingUserId && isInUserList && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isOwner && (
+                <DropdownMenuItem onClick={() => navigate(`/edit/${restaurant.id}`)}>
+                  <Edit className="mr-2 h-4 w-4" /> Edit
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} className="text-red-600">
+                <Trash2 className="mr-2 h-4 w-4" /> Remove from list
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} className="text-red-600">
-              <Trash2 className="mr-2 h-4 w-4" /> Remove from list
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <div className="relative bg-slate-100 h-64 rounded-xl mb-6 flex items-center justify-center">
@@ -160,8 +202,8 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           )}
         </div>
 
-        {!restaurant?.to_try && (
-          <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-6">
+          {!viewingUserId && isInUserList && !restaurant?.to_try && (
             <div>
               <h2 className="text-lg font-semibold mb-2">Your Rating</h2>
               {userReview ? (
@@ -188,30 +230,32 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                 </Button>
               )}
             </div>
+          )}
 
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Overall Rating</h2>
-              {aggregateRating > 0 ? (
-                <div>
-                  <div className="text-3xl font-bold mb-2 flex items-center">
-                    {formatRating(aggregateRating)}
-                    <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
-                  </div>
+          <div className={!viewingUserId && isInUserList ? "col-span-1" : "col-span-2"}>
+            <h2 className="text-lg font-semibold mb-2">Overall Rating</h2>
+            {aggregateRating > 0 ? (
+              <div>
+                <div className="text-3xl font-bold mb-2 flex items-center">
+                  {formatRating(aggregateRating)}
+                  <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
                 </div>
-              ) : (
-                <div className="text-gray-500">No ratings yet</div>
-              )}
-            </div>
+                <div className="text-sm text-gray-500">
+                  Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
+                </div>
+              </div>
+            ) : (
+              <div className="text-gray-500">No ratings yet</div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Notes Section */}
-        <div className="mt-8">
-          <RestaurantNotes user={user} restaurantId={id} />
-        </div>
+        {!viewingUserId && isInUserList && (
+          <div className="mt-8">
+            <RestaurantNotes user={user} restaurantId={id} />
+          </div>
+        )}
       </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

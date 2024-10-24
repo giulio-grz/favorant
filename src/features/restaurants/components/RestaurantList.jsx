@@ -1,7 +1,4 @@
-import React from 'react';
-import { Badge } from '@/components/ui/badge';
-
-const RestaurantList = ({ restaurants, onRestaurantClick, currentUserId }) => {
+const RestaurantList = ({ restaurants, onRestaurantClick }) => {
   return (
     <div className="space-y-4">
       {restaurants.map((restaurant) => (
@@ -11,16 +8,22 @@ const RestaurantList = ({ restaurants, onRestaurantClick, currentUserId }) => {
           onClick={() => onRestaurantClick(restaurant.id)}
         >
           <div className="flex justify-between items-start">
-            <h3 className="text-lg font-semibold">{restaurant.name}</h3>
-            {restaurant.bookmarks && restaurant.bookmarks.some(b => b.type === 'to_try') && (
-              <Badge variant="secondary">To Try</Badge>
-            )}
+            <div>
+              <h3 className="text-lg font-semibold">{restaurant.name}</h3>
+              <div className="text-sm text-gray-500">
+                <p>{restaurant.restaurant_types?.name}</p>
+                <p>{restaurant.cities?.name}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {(restaurant.is_to_try || restaurant.to_try || restaurant.bookmarkType === 'to_try') && (
+                <Badge variant="secondary">To Try</Badge>
+              )}
+              {restaurant.has_user_review && restaurant.user_rating && (
+                <Badge variant="secondary">{restaurant.user_rating.toFixed(1)}</Badge>
+              )}
+            </div>
           </div>
-          <p>{restaurant.restaurant_types?.name}</p>
-          <p>{restaurant.cities?.name}</p>
-          {restaurant.aggregate_rating > 0 && (
-            <p>Rating: {restaurant.aggregate_rating.toFixed(1)}</p>
-          )}
         </div>
       ))}
     </div>

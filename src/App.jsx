@@ -127,6 +127,22 @@ function App() {
                   )
                 } 
               />
+              {/* Add this new route for viewing restaurants in user profiles */}
+              <Route 
+                path="/user/:userId/restaurant/:id" 
+                element={
+                  user ? (
+                    <RestaurantDetails 
+                      user={user}
+                      updateLocalRestaurant={updateLocalRestaurant}
+                      deleteLocalRestaurant={deleteLocalRestaurant}
+                      addLocalRestaurant={addLocalRestaurant}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
               <Route 
                 path="/restaurant/:id" 
                 element={

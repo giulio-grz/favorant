@@ -11,7 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Check, ChevronsUpDown, Euro, MapPin, UtensilsCrossed, Search, Plus, ArrowRight, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createRestaurant, updateRestaurant, getRestaurantTypes, getCities, createCity, createRestaurantType, searchRestaurants, addBookmark, addReview, getUserRestaurantData } from '@/supabaseClient';
+import { supabase, createRestaurant, updateRestaurant, getRestaurantTypes, getCities, createCity, createRestaurantType, searchRestaurants, addBookmark, addReview, getUserRestaurantData } from '@/supabaseClient';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -124,11 +124,12 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
   const handleSelectRestaurant = (restaurant) => {
     setSelectedRestaurant(restaurant);
     setRestaurant({
+      id: restaurant.id, // Make sure to include the ID
       name: restaurant.name,
-      type_id: restaurant.restaurant_types?.id,
-      city_id: restaurant.cities?.id,
-      address: restaurant.address,
+      type_id: restaurant.type_id, // Use direct type_id instead of restaurant_types?.id
+      city_id: restaurant.city_id, // Use direct city_id instead of cities?.id
       price: restaurant.price || 1,
+      address: restaurant.address
     });
     setSearchQuery('');
     setSearchResults([]);
@@ -148,7 +149,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
           created_by: user.id,
           status: user.profile?.is_admin ? 'approved' : 'pending'
         });
-        setTypes(prev => [...prev, newType]);
+        await refreshTypesAndCities(); // Add this line
         setRestaurant(prev => ({ ...prev, type_id: newType.id }));
         setNewTypeName('');
         setIsAddingType(false);
@@ -167,7 +168,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
           created_by: user.id,
           status: user.profile?.is_admin ? 'approved' : 'pending'
         });
-        setCities(prev => [...prev, newCity]);
+        await refreshTypesAndCities(); // Add this line
         setRestaurant(prev => ({ ...prev, city_id: newCity.id }));
         setNewCityName('');
         setIsAddingCity(false);
@@ -185,6 +186,26 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
     } else {
       setShowReviewForm(true);
       setCurrentStep(4);
+    }
+  };
+
+  const refreshTypesAndCities = async () => {
+    try {
+      const { data: typesData, error: typesError } = await supabase
+        .from('restaurant_types')
+        .select('*');
+      
+      if (typesError) throw typesError;
+      setTypes(typesData);
+  
+      const { data: citiesData, error: citiesError } = await supabase
+        .from('cities')
+        .select('*');
+      
+      if (citiesError) throw citiesError;
+      setCities(citiesData);
+    } catch (error) {
+      console.error('Error refreshing types and cities:', error);
     }
   };
 
@@ -212,56 +233,71 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
     setSuccessMessage('');
     try {
       let savedRestaurant;
-      if (isEditing) {
+      
+      if (selectedRestaurant) {
+        // If we're adding an existing restaurant, use it directly
+        savedRestaurant = selectedRestaurant;
+      } else if (isEditing) {
         savedRestaurant = await updateRestaurant(id, restaurant);
         updateLocalRestaurant(savedRestaurant);
       } else {
-        // Make sure to pass the user.id explicitly
         savedRestaurant = await createRestaurant({
           name: restaurant.name,
           type_id: restaurant.type_id,
           city_id: restaurant.city_id,
           price: restaurant.price,
           address: restaurant.address
-        }, user.id, isToTry);
-        
-        addLocalRestaurant(savedRestaurant);
+        }, user.id);
       }
   
-      // Handle "To Try" case
+      // Always create a bookmark when adding to list
       if (isToTry) {
-        await addBookmark(user.id, savedRestaurant.id, 'to_try');
-        setSuccessMessage('Restaurant added to your "To Try" list.');
-        setTimeout(() => navigate('/'), 2000);
-      } 
-      // Handle rating and note case
-      else if (!toTry && rating > 0) {
-        // Add the rating
+        // Add to "To Try" list
+        const { error: bookmarkError } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            restaurant_id: savedRestaurant.id,
+            type: 'to_try'
+          });
+  
+        if (bookmarkError) throw bookmarkError;
+        
+      } else if (!toTry && rating > 0) {
+        // Add review
         await addReview({
           user_id: user.id,
           restaurant_id: savedRestaurant.id,
           rating: rating
         });
   
-        // Add the note if provided
+        // Add bookmark as favorite
+        const { error: bookmarkError } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            restaurant_id: savedRestaurant.id,
+            type: 'favorite'
+          });
+  
+        if (bookmarkError) throw bookmarkError;
+  
         if (initialNote.trim()) {
-          await supabase
+          const { error: noteError } = await supabase
             .from('notes')
             .insert({
               user_id: user.id,
               restaurant_id: savedRestaurant.id,
               note: initialNote.trim()
             });
-        }
   
-        setSuccessMessage('Restaurant and rating added successfully.');
-        setTimeout(() => navigate('/'), 2000);
+          if (noteError) throw noteError;
+        }
       }
-      // Handle base case (no rating or to try)
-      else {
-        setSuccessMessage('Restaurant added successfully.');
-        setTimeout(() => navigate('/'), 2000);
-      }
+  
+      addLocalRestaurant(savedRestaurant);
+      setSuccessMessage(isToTry ? 'Restaurant added to your "To Try" list.' : 'Restaurant and review added successfully.');
+      setTimeout(() => navigate('/'), 2000);
   
     } catch (error) {
       console.error('Error saving restaurant:', error);
@@ -368,10 +404,14 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>{isEditing ? 'Edit' : 'Add'} Restaurant</CardTitle>
+        <CardTitle>
+          {selectedRestaurant ? 'Add to Your List' : (isEditing ? 'Edit' : 'Add')} Restaurant
+        </CardTitle>
         <CardDescription>
           {currentStep === 2 && 'Enter basic restaurant information'}
-          {currentStep === 3 && 'Specify restaurant details'}
+          {currentStep === 3 && (selectedRestaurant ? 
+            'Choose how you want to add this restaurant to your list' : 
+            'Specify restaurant details')}
           {currentStep === 4 && 'Add your review'}
         </CardDescription>
         {renderStepIndicator()}
@@ -423,86 +463,83 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
         )}
 
         {/* Step 3: Location & Type */}
-        {/* Step 3: Location & Type */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label>City</Label>
-              <div className="flex space-x-2">
-                <Select
-                  value={restaurant.city_id?.toString() || ''}
-                  onValueChange={(value) => setRestaurant(prev => ({ ...prev, city_id: parseInt(value) }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select city" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cities.map((city) => (
-                      <SelectItem key={city.id} value={city.id.toString()}>
-                        {city.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="new">
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-left p-0 h-auto font-normal"
-                        onClick={(e) => {
-                          e.preventDefault();
+            {/* Only show city and type fields if it's a new restaurant */}
+            {!selectedRestaurant && (
+              <>
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <div className="flex space-x-2">
+                    <Select
+                      value={restaurant.city_id?.toString() || ''}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
                           setIsAddingCity(true);
-                        }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add new city
-                      </Button>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                        } else {
+                          setRestaurant(prev => ({ ...prev, city_id: parseInt(value) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select city" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map((city) => (
+                          <SelectItem key={city.id} value={city.id.toString()}>
+                            {city.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-blue-600">
+                          <Plus className="mr-2 h-4 w-4 inline" />
+                          Add new city
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <div className="flex space-x-2">
-                <Select
-                  value={restaurant.type_id?.toString() || ''}
-                  onValueChange={(value) => setRestaurant(prev => ({ ...prev, type_id: parseInt(value) }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {types.map((type) => (
-                      <SelectItem key={type.id} value={type.id.toString()}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="new">
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-left p-0 h-auto font-normal"
-                        onClick={(e) => {
-                          e.preventDefault();
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <div className="flex space-x-2">
+                    <Select
+                      value={restaurant.type_id?.toString() || ''}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
                           setIsAddingType(true);
-                        }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add new type
-                      </Button>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                        } else {
+                          setRestaurant(prev => ({ ...prev, type_id: parseInt(value) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {types.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-blue-600">
+                          <Plus className="mr-2 h-4 w-4 inline" />
+                          Add new type
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
 
+            {/* Always show the "What would you like to do" section */}
             <div className="space-y-4 pt-4">
               <div className="text-lg font-semibold">What would you like to do with this restaurant?</div>
               <div className="flex flex-col space-y-4">
-              <Button
+                <Button
                   variant={toTry ? "default" : "outline"}
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => {
-                    setToTry(true);
-                  }}
+                  onClick={() => setToTry(true)}
                 >
                   <div className="flex flex-col items-start">
                     <span className="font-semibold">Add to "To Try" List</span>
@@ -515,9 +552,7 @@ const AddEditRestaurant = ({ user, types: initialTypes, cities: initialCities, r
                 <Button
                   variant={!toTry ? "default" : "outline"}
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => {
-                    setToTry(false);
-                  }}
+                  onClick={() => setToTry(false)}
                 >
                   <div className="flex flex-col items-start">
                     <span className="font-semibold">Add Review</span>

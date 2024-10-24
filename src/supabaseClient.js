@@ -5,6 +5,29 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+const checkRestaurantAssociations = async (userId, restaurantId) => {
+  try {
+    // Check bookmarks
+    const { data: bookmarks } = await supabase
+      .from('bookmarks')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('restaurant_id', restaurantId);
+
+    // Check reviews
+    const { data: reviews } = await supabase
+      .from('restaurant_reviews')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('restaurant_id', restaurantId);
+
+    return (bookmarks?.length > 0 || reviews?.length > 0);
+  } catch (error) {
+    console.error('Error checking associations:', error);
+    return false;
+  }
+};
+
 export const signUp = async (email, password, username) => {
   try {
     console.log("Starting sign-up process");
@@ -125,115 +148,83 @@ export const searchUsers = async (query, currentUserId) => {
   }
 };
 
-export const getUserRestaurants = async (userId) => {
+export const getUserRestaurants = async (userId, viewingUserId = null) => {
+  const targetUserId = viewingUserId || userId;
+  
   try {
-    console.log("Fetching restaurants for user:", userId);
+    console.log("Fetching restaurants for user:", targetUserId);
 
+    // First get all restaurants through reviews
+    const { data: reviewedRestaurants, error: reviewsError } = await supabase
+      .from('restaurant_reviews')
+      .select(`
+        restaurant_id,
+        rating,
+        restaurants (
+          *,
+          restaurant_types (*),
+          cities (*)
+        )
+      `)
+      .eq('user_id', targetUserId);
+
+    if (reviewsError) throw reviewsError;
+
+    // Get restaurants through bookmarks
     const { data: bookmarkedRestaurants, error: bookmarksError } = await supabase
       .from('bookmarks')
       .select(`
+        restaurant_id,
         type,
-        restaurant:restaurants(
+        restaurants (
           *,
-          restaurant_types(*),
-          cities(*),
-          restaurant_reviews(*)
+          restaurant_types (*),
+          cities (*)
         )
       `)
-      .eq('user_id', userId);
+      .eq('user_id', targetUserId);
 
     if (bookmarksError) throw bookmarksError;
-    console.log("Fetched bookmarked restaurants:", bookmarkedRestaurants);
 
-    const { data: createdRestaurants, error: createdError } = await supabase
-      .from('restaurants')
-      .select(`
-        *,
-        restaurant_types(*),
-        cities(*),
-        restaurant_reviews(*)
-      `)
-      .eq('created_by', userId);
+    // Create a map to store unique restaurants with their properties
+    const restaurantsMap = new Map();
 
-    if (createdError) throw createdError;
-    console.log("Fetched created restaurants:", createdRestaurants);
+    // Process reviewed restaurants
+    reviewedRestaurants?.forEach(review => {
+      if (review.restaurants) {
+        restaurantsMap.set(review.restaurant_id, {
+          ...review.restaurants,
+          has_user_review: true,
+          user_rating: review.rating,
+          is_to_try: false
+        });
+      }
+    });
 
-    const { data: reviewedRestaurants, error: reviewedError } = await supabase
-      .from('restaurant_reviews')
-      .select(`
-        restaurant:restaurants(
-          *,
-          restaurant_types(*),
-          cities(*),
-          restaurant_reviews(*)
-        )
-      `)
-      .eq('user_id', userId);
+    // Process bookmarked restaurants
+    bookmarkedRestaurants?.forEach(bookmark => {
+      if (bookmark.restaurants) {
+        const existing = restaurantsMap.get(bookmark.restaurant_id);
+        restaurantsMap.set(bookmark.restaurant_id, {
+          ...(existing || bookmark.restaurants),
+          ...bookmark.restaurants,
+          is_to_try: bookmark.type === 'to_try',
+          is_bookmarked: true,
+          has_user_review: existing?.has_user_review || false,
+          user_rating: existing?.user_rating || null
+        });
+      }
+    });
 
-    if (reviewedError) throw reviewedError;
-    console.log("Fetched reviewed restaurants:", reviewedRestaurants);
+    // Convert map to array and sort by creation date
+    const restaurants = Array.from(restaurantsMap.values())
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const restaurants = [
-      ...bookmarkedRestaurants.map(b => ({
-        ...b.restaurant,
-        is_bookmarked: true,
-        bookmark_type: b.type
-      })),
-      ...createdRestaurants.map(r => ({ 
-        ...r, 
-        is_created: true
-      })),
-      ...reviewedRestaurants.map(r => ({
-        ...r.restaurant,
-        is_reviewed: true
-      }))
-    ];
+    console.log("Processed restaurants:", restaurants);
+    return restaurants;
 
-    // Remove duplicates and calculate correct aggregate ratings and review counts
-    const uniqueRestaurants = Array.from(new Set(restaurants.map(r => r.id)))
-      .map(id => {
-        const restaurant = restaurants.find(r => r.id === id);
-        const reviews = restaurant.restaurant_reviews || [];
-        const reviewCount = reviews.length;
-        const aggregateRating = reviewCount > 0
-          ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-          : null;
-
-        const isToTry = restaurant.is_bookmarked && 
-                        restaurant.bookmark_type === 'to_try' && 
-                        !reviews.some(review => review.user_id === userId);
-
-        console.log(`Restaurant ${restaurant.name} (ID: ${restaurant.id}) - Is To Try: ${isToTry}, Review Count: ${reviewCount}`);
-
-        return {
-          ...restaurant,
-          review_count: reviewCount,
-          aggregate_rating: aggregateRating,
-          is_to_try: isToTry
-        };
-      });
-
-    console.log("Processed restaurants:", uniqueRestaurants);
-    return uniqueRestaurants;
   } catch (error) {
     console.error("Error in getUserRestaurants:", error);
-    throw error;
-  }
-};
-
-export const searchRestaurants = async (query) => {
-  try {
-    const { data, error } = await supabase
-      .from('restaurants')
-      .select('id, name, address, cities(name), restaurant_types(name)')
-      .or(`name.ilike.%${query}%, address.ilike.%${query}%`)
-      .order('name')
-      .limit(5);
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error searching restaurants:', error);
     throw error;
   }
 };
@@ -271,24 +262,30 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
       city_id: restaurantData.city_id,
       price: restaurantData.price,
       address: restaurantData.address,
-      created_by: userId  // Make sure this is explicitly set
+      created_by: userId
     };
 
     console.log('Data to insert:', JSON.stringify(dataToInsert, null, 2));
 
-    const { data, error } = await supabase
+    // First create the restaurant
+    const { data: restaurant, error: restaurantError } = await supabase
       .from('restaurants')
       .insert(dataToInsert)
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
+    if (restaurantError) {
+      console.error('Supabase error:', restaurantError);
+      throw restaurantError;
     }
 
-    console.log('Restaurant created:', data);
-    return data;
+    // Then create the bookmark if it's a "to try" restaurant
+    if (isToTry) {
+      await addRestaurantToUserList(userId, restaurant.id, true);
+    }
+
+    console.log('Restaurant created:', restaurant);
+    return restaurant;
   } catch (error) {
     console.error('Error creating restaurant:', error);
     throw error;
@@ -378,15 +375,19 @@ export const addBookmark = async (userId, restaurantId, type = 'favorite') => {
 
 export const addReview = async ({ user_id, restaurant_id, rating }) => {
   try {
-    // First, remove the 'to_try' bookmark if it exists
-    const { error: bookmarkError } = await supabase
+    // First remove any "to try" bookmark if it exists
+    const { error: deleteError } = await supabase
       .from('bookmarks')
       .delete()
-      .match({ user_id, restaurant_id, type: 'to_try' });
+      .match({ 
+        user_id, 
+        restaurant_id, 
+        type: 'to_try' 
+      });
 
-    if (bookmarkError) throw bookmarkError;
+    if (deleteError) throw deleteError;
 
-    // Check if a review already exists
+    // Handle the review
     const { data: existingReview, error: checkError } = await supabase
       .from('restaurant_reviews')
       .select('*')
@@ -394,9 +395,7 @@ export const addReview = async ({ user_id, restaurant_id, rating }) => {
       .eq('restaurant_id', restaurant_id)
       .single();
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      throw checkError;
-    }
+    if (checkError && checkError.code !== 'PGRST116') throw checkError;
 
     let reviewData;
     if (existingReview) {
@@ -628,47 +627,130 @@ export const deleteRestaurant = async (id, userId) => {
   }
 };
 
+export const searchRestaurants = async (query) => {
+  try {
+    const { data, error } = await supabase
+      .from('restaurants')
+      .select(`
+        id,
+        name,
+        address,
+        type_id,
+        city_id,
+        price,
+        restaurant_types (
+          id,
+          name
+        ),
+        cities (
+          id,
+          name
+        )
+      `)
+      .or(`name.ilike.%${query}%,address.ilike.%${query}%`)
+      .order('name')
+      .limit(5);
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error searching restaurants:', error);
+    throw error;
+  }
+};
+
 export const removeRestaurantFromUserList = async (userId, restaurantId) => {
   try {
-    // Remove the bookmark
-    const { error: bookmarkError } = await supabase
-      .from('bookmarks')
-      .delete()
-      .match({ user_id: userId, restaurant_id: restaurantId });
+    // Delete all associations in parallel
+    const promises = [
+      // Delete bookmarks
+      supabase
+        .from('bookmarks')
+        .delete()
+        .eq('user_id', userId)
+        .eq('restaurant_id', restaurantId),
+      
+      // Delete reviews - make sure this executes
+      supabase
+        .from('restaurant_reviews')
+        .delete()
+        .eq('user_id', userId)
+        .eq('restaurant_id', restaurantId),
+      
+      // Delete notes
+      supabase
+        .from('notes')
+        .delete()
+        .eq('user_id', userId)
+        .eq('restaurant_id', restaurantId)
+    ];
 
-    if (bookmarkError) throw bookmarkError;
+    const results = await Promise.all(promises);
+    
+    // Check for errors in any of the delete operations
+    results.forEach((result, index) => {
+      if (result.error) {
+        console.error(`Error in deletion operation ${index}:`, result.error);
+        throw result.error;
+      }
+    });
 
-    // Remove the review if it exists
-    const { error: reviewError } = await supabase
-      .from('restaurant_reviews')
-      .delete()
-      .match({ user_id: userId, restaurant_id: restaurantId });
+    return {
+      success: true,
+      message: 'Restaurant removed from list successfully'
+    };
 
-    if (reviewError) throw reviewError;
-
-    return { success: true, message: "Restaurant removed from your list successfully." };
   } catch (error) {
-    console.error('Error in removeRestaurantFromUserList function:', error);
+    console.error('Error removing restaurant from list:', error);
     throw error;
   }
 };
 
 export const getUserRestaurantData = async (userId, restaurantId) => {
   try {
-    const { data, error } = await supabase
-      .from('user_restaurants')
-      .select(`
-        *,
-        restaurant_reviews (rating, review),
-        bookmarks (type)
-      `)
+    // Get bookmarks
+    const { data: bookmark, error: bookmarkError } = await supabase
+      .from('bookmarks')
+      .select('*')
       .eq('user_id', userId)
       .eq('restaurant_id', restaurantId)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error;
+    // Get reviews
+    const { data: review, error: reviewError } = await supabase
+      .from('restaurant_reviews')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('restaurant_id', restaurantId)
+      .single();
 
-    return data;
+    // Get notes
+    const { data: notes, error: notesError } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('restaurant_id', restaurantId);
+
+    // Get restaurant info
+    const { data: restaurant, error: restaurantError } = await supabase
+      .from('restaurants')
+      .select(`
+        *,
+        restaurant_types(*),
+        cities(*),
+        restaurant_reviews(*)
+      `)
+      .eq('id', restaurantId)
+      .single();
+
+    if (restaurantError) throw restaurantError;
+
+    return {
+      ...restaurant,
+      user_bookmark: bookmark || null,
+      user_review: review || null,
+      user_notes: notes || []
+    };
   } catch (error) {
     console.error("Error fetching user restaurant data:", error);
     throw error;

@@ -69,9 +69,21 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     fetchRestaurants();
   }, [fetchRestaurants]);
 
+  const deleteLocalRestaurant = useCallback((restaurantId) => {
+    setRestaurants(prevRestaurants => 
+      prevRestaurants.filter(restaurant => restaurant.id !== restaurantId)
+    );
+  }, []);
+
   const handleRestaurantClick = useCallback((restaurantId) => {
-    navigate(`/restaurant/${restaurantId}`);
-  }, [navigate]);
+    if (viewingUserId) {
+      // If we're viewing someone else's profile, include their ID in the URL
+      navigate(`/user/${viewingUserId}/restaurant/${restaurantId}`);
+    } else {
+      // If we're viewing our own profile, use the regular route
+      navigate(`/restaurant/${restaurantId}`);
+    }
+  }, [navigate, viewingUserId]);
 
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query);
