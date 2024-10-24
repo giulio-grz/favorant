@@ -54,6 +54,43 @@ export const signIn = async (email, password) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+
+    // Fetch profile immediately after successful sign in
+    if (data.user) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        // Create profile if it doesn't exist
+        if (profileError.code === 'PGRST116') {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                id: data.user.id,
+                email: data.user.email,
+                username: data.user.email,
+                is_admin: false
+              }
+            ])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error("Error creating profile:", createError);
+          } else {
+            return { ...data, user: { ...data.user, profile: newProfile }};
+          }
+        }
+      } else {
+        return { ...data, user: { ...data.user, profile }};
+      }
+    }
+
     return data;
   } catch (error) {
     console.error("Sign in error:", error);

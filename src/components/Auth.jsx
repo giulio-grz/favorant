@@ -35,6 +35,16 @@ const Auth = ({ setUser }) => {
         const { user, error } = await signIn(email, password);
         if (error) throw error;
         console.log("Sign in successful:", user);
+        // Make sure profile is attached
+        if (!user.profile) {
+          console.log("No profile found, fetching...");
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          user.profile = profile;
+        }
         setUser(user);
       }
     } catch (error) {
