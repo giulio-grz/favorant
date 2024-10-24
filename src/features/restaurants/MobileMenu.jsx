@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '../../components/ui/sheet';
-import { Menu, PlusCircle, Filter, Settings, LogOut } from 'lucide-react';
+import { Menu, PlusCircle, Filter, Settings, LogOut, Shield } from 'lucide-react';
 import { searchUsers, signOut } from '../../supabaseClient';
 
 const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, user, setUser, canAdd }) => {
@@ -69,7 +69,7 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
               ))}
             </ul>
           )}
-          <nav className="flex-grow overflow-y-auto">
+           <nav className="flex-grow overflow-y-auto">
             <ul className="space-y-4 p-4">
               {canAdd && (
                 <li>
@@ -91,6 +91,21 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
                   Settings
                 </Button>
               </li>
+              {user?.profile?.is_admin && (
+                <li>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start" 
+                    onClick={() => { 
+                      navigate('/admin'); 
+                      setIsOpen(false); 
+                    }}
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    Admin
+                  </Button>
+                </li>
+              )}
             </ul>
           </nav>
           <div className="p-4 border-t">
