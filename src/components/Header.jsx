@@ -5,6 +5,7 @@ import { PlusCircle, Filter, Settings, Shield } from 'lucide-react';
 import UserMenu from './UserMenu';
 import UserSearch from './UserSearch';
 import MobileMenu from '../features/restaurants/MobileMenu';
+import logo from '../assets/favorant-logo.svg';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
@@ -17,8 +18,12 @@ const Header = ({ user, setUser }) => {
     <header className="bg-background pt-3 pb-3 mb-4">
       <div className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw] py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link to="/" className="text-2xl text-black font-bold">
-            Favorant
+          <Link to="/" className="flex items-center">
+            <img 
+              src={logo} 
+              alt="Favorant Logo" 
+              className="h-8 w-auto"
+            />
           </Link>
         </div>
         <div className="hidden md:flex items-center space-x-4">
