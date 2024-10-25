@@ -41,7 +41,7 @@ function App() {
       
       if (!mounted) return;
   
-      if (event === 'SIGNED_IN') {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         try {
           const { user } = session;
           
@@ -74,12 +74,32 @@ function App() {
       setLoading(false);
     });
   
-    // Initial session check
+    // Check for direct sign-in after email verification
     const initializeAuth = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        if (mounted) {
-          setUser(currentUser);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (session) {
+          const { user } = session;
+          // Check if profile exists
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+  
+          if (!existingProfile) {
+            // Create profile if it doesn't exist
+            const profile = await createProfile(
+              user.id, 
+              user.email, 
+              user.user_metadata?.username || user.email
+            );
+            setUser({ ...user, profile });
+          } else {
+            setUser({ ...user, profile: existingProfile });
+          }
         }
       } catch (error) {
         console.error('Error checking auth state:', error);
