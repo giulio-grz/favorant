@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { getCurrentUser, getUserRestaurants } from './supabaseClient';
+import { getCurrentUser, supabase } from './supabaseClient';
 import { useTypesAndCities } from './features/restaurants/hooks/useTypesAndCities';
 import ErrorBoundary from './ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -19,6 +19,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [verificationMessage, setVerificationMessage] = useState('');
   const [filters, setFilters] = useState({
     name: '',
     type_id: null,
@@ -31,35 +32,71 @@ function App() {
 
   const { types, cities } = useTypesAndCities();
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Handle auth state changes
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  useEffect(() => {
-    const fetchRestaurants = async () => {
-      if (user) {
+    let mounted = true;
+  
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
+      if (!mounted) return;
+  
+      if (event === 'SIGNED_IN') {
         try {
-          const fetchedRestaurants = await getUserRestaurants(user.id);
-          setRestaurants(fetchedRestaurants);
+          const { user } = session;
+          
+          // Check if profile exists
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+  
+          if (!existingProfile) {
+            // Create profile if it doesn't exist
+            const profile = await createProfile(
+              user.id, 
+              user.email, 
+              user.user_metadata?.username || user.email
+            );
+            setUser({ ...user, profile });
+          } else {
+            setUser({ ...user, profile: existingProfile });
+          }
+          
+          setVerificationMessage('');
         } catch (error) {
-          console.error("Error fetching restaurants:", error);
+          console.error('Error handling sign in:', error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+  
+    // Initial session check
+    const initializeAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        if (mounted) {
+          setUser(currentUser);
+        }
+      } catch (error) {
+        console.error('Error checking auth state:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
     };
-
-    fetchRestaurants();
-  }, [user]);
+  
+    initializeAuth();
+  
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const addLocalRestaurant = useCallback((newRestaurant) => {
     setRestaurants(prevRestaurants => [newRestaurant, ...prevRestaurants]);
@@ -82,7 +119,9 @@ function App() {
     setSortOption(newSortOption);
   }, []);
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <ErrorBoundary>
@@ -90,10 +129,24 @@ function App() {
         {user && <Header user={user} setUser={setUser} />}
         <main className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw]">
           <Suspense fallback={<LoadingSpinner />}>
+            {verificationMessage && (
+              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mt-4 mb-4">
+                {verificationMessage}
+              </div>
+            )}
             <Routes>
               <Route 
                 path="/auth" 
-                element={user ? <Navigate to="/" replace /> : <Auth setUser={setUser} />} 
+                element={
+                  user ? (
+                    <Navigate to="/" replace /> 
+                  ) : (
+                    <Auth 
+                      setUser={setUser} 
+                      setVerificationMessage={setVerificationMessage}
+                    />
+                  )
+                } 
               />
               <Route 
                 path="/" 
@@ -127,7 +180,6 @@ function App() {
                   )
                 } 
               />
-              {/* Add this new route for viewing restaurants in user profiles */}
               <Route 
                 path="/user/:userId/restaurant/:id" 
                 element={
@@ -194,7 +246,13 @@ function App() {
               />
               <Route 
                 path="/settings" 
-                element={user ? <UserSettings user={user} setUser={setUser} /> : <Navigate to="/auth" replace />} 
+                element={
+                  user ? (
+                    <UserSettings user={user} setUser={setUser} />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
               />
               <Route 
                 path="/filter" 
@@ -217,7 +275,7 @@ function App() {
               <Route 
                 path="/admin" 
                 element={
-                  user && user.profile.is_admin ? (
+                  user && user.profile?.is_admin ? (
                     <AdminDashboard />
                   ) : (
                     <Navigate to="/" replace />

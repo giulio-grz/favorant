@@ -31,21 +31,57 @@ const checkRestaurantAssociations = async (userId, restaurantId) => {
 export const signUp = async (email, password, username) => {
   try {
     console.log("Starting sign-up process");
-    const { data, error } = await supabase.auth.signUp({
+    
+    // First sign up the user
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { username }
+        data: { username },
+        emailRedirectTo: window.location.origin
       }
     });
-    if (error) {
-      console.error("Sign-up error:", error);
-      throw error;
+
+    if (signUpError) throw signUpError;
+    
+    if (authData.user) {
+      // Don't try to create profile immediately
+      // Instead, return the auth data and let the user verify their email
+      console.log("Sign up successful, awaiting email verification");
+      return {
+        user: authData.user,
+        session: authData.session,
+        message: "Please check your email to verify your account."
+      };
     }
-    console.log("Sign-up successful, data:", data);
-    return data;
+
+    throw new Error('No user data returned from sign-up');
   } catch (error) {
     console.error("Caught error during sign-up:", error);
+    throw error;
+  }
+};
+
+// Add this new function to create profile after email verification
+export const createProfile = async (userId, email, username) => {
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: userId,
+          email: email,
+          username: username,
+          is_admin: false
+        }
+      ])
+      .select()
+      .single();
+
+    if (profileError) throw profileError;
+    return profile;
+  } catch (error) {
+    console.error("Error creating profile:", error);
     throw error;
   }
 };

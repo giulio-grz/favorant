@@ -3,66 +3,89 @@ import { signUp, signIn } from '../supabaseClient';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
+import logo from '../assets/favorant-logo.svg';
 
-/**
- * Auth Component
- * 
- * This component handles user authentication, including both sign-up and sign-in functionality.
- * It provides a full-page layout that's consistent with shadcn UI styling principles.
- * 
- * @param {Object} props
- * @param {Function} props.setUser - Function to update the user state in the parent component
- */
-const Auth = ({ setUser }) => {
+const Auth = ({ setUser, setVerificationMessage }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setUsername('');
+    setError('');
+  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
+
     try {
       if (isSignUp) {
         console.log("Attempting sign up...");
-        const { user, error } = await signUp(email, password, username);
-        if (error) throw error;
-        console.log("Sign up successful:", user);
-        setUser(user);
+        const { message } = await signUp(email, password, username);
+        
+        setVerificationMessage(message);
+        setIsSignUp(false);
+        resetForm();
+        
       } else {
         console.log("Attempting sign in...");
-        const { user, error } = await signIn(email, password);
-        if (error) throw error;
-        console.log("Sign in successful:", user);
-        // Make sure profile is attached
-        if (!user.profile) {
-          console.log("No profile found, fetching...");
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          user.profile = profile;
+        const { user, error: signInError } = await signIn(email, password);
+        
+        if (signInError) throw signInError;
+        
+        if (user) {
+          console.log("Sign in successful:", user);
+          setUser(user);
+        } else {
+          throw new Error('Sign in failed');
         }
-        setUser(user);
       }
     } catch (error) {
       console.error("Auth error:", error);
-      setError(error.message);
-      if (error.message.includes('duplicate key value')) {
+      if (error.message.includes('Email not confirmed')) {
+        setError("Please verify your email address before signing in.");
+        setVerificationMessage('Please check your email to verify your account.');
+      } else if (error.message.includes('Invalid login credentials')) {
+        setError("Invalid email or password.");
+      } else if (error.message.includes('duplicate key value')) {
         setError("An account with this email already exists. Try signing in instead.");
+      } else {
+        setError(error.message);
       }
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    resetForm();
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h2 className="mt-6 text-3xl font-bold tracking-tight">
-            {isSignUp ? 'Create an Account' : 'Sign In'}
+        <div className="flex flex-col items-center">
+          <img 
+            src={logo} 
+            alt="Favorant Logo" 
+            className="h-8 w-auto mb-8"
+          />
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+            {isSignUp ? 'Create an Account' : 'Welcome Back'}
           </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isSignUp 
+              ? 'Sign up to start managing your restaurant lists' 
+              : 'Please sign in to your account'}
+          </p>
         </div>
 
         <form onSubmit={handleAuth} className="mt-8 space-y-6">
@@ -76,6 +99,8 @@ const Auth = ({ setUser }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loading}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
@@ -87,6 +112,8 @@ const Auth = ({ setUser }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={loading}
+                className="h-11"
               />
             </div>
             {isSignUp && (
@@ -99,28 +126,37 @@ const Auth = ({ setUser }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
+                  disabled={loading}
+                  className="h-11"
                 />
               </div>
             )}
           </div>
 
-          <Button type="submit" className="w-full">
-            {isSignUp ? 'Sign Up' : 'Sign In'}
+          <Button 
+            type="submit" 
+            className="w-full h-11"
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
           </Button>
         </form>
 
         <div className="text-center">
           <Button 
             variant="link" 
-            onClick={() => setIsSignUp(!isSignUp)}
+            onClick={toggleMode}
             className="text-sm"
+            disabled={loading}
           >
             {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
           </Button>
         </div>
 
         {error && (
-          <p className="text-sm text-destructive text-center mt-4">{error}</p>
+          <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md text-center">
+            {error}
+          </div>
         )}
       </div>
     </div>
