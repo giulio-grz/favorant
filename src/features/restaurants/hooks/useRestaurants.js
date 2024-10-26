@@ -14,11 +14,15 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
       return;
     }
 
+    let isMounted = true;
     setLoading(true);
     setError(null);
 
     try {
-      const data = await getUserRestaurants(userId);
+      // Pass the viewingUserId directly
+      const data = await getUserRestaurants(isViewingOwnRestaurants ? userId : userId);
+      
+      if (!isMounted) return;
 
       let filteredData = data;
       
@@ -27,14 +31,16 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
         const lowercaseQuery = searchQuery.toLowerCase();
         filteredData = filteredData.filter(r => 
           r.name.toLowerCase().includes(lowercaseQuery) ||
-          r.restaurant_types?.name.toLowerCase().includes(lowercaseQuery) ||
-          r.cities?.name.toLowerCase().includes(lowercaseQuery)
+          r.restaurant_types?.name?.toLowerCase().includes(lowercaseQuery) ||
+          r.cities?.name?.toLowerCase().includes(lowercaseQuery)
         );
       }
 
       // Apply other filters
       if (filters.name) {
-        filteredData = filteredData.filter(r => r.name.toLowerCase().includes(filters.name.toLowerCase()));
+        filteredData = filteredData.filter(r => 
+          r.name.toLowerCase().includes(filters.name.toLowerCase())
+        );
       }
       if (filters.type_id) {
         filteredData = filteredData.filter(r => r.type_id === filters.type_id);
@@ -46,9 +52,9 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
         filteredData = filteredData.filter(r => r.price === filters.price);
       }
       if (filters.toTry === true) {
-        filteredData = filteredData.filter(r => r.to_try === true);
+        filteredData = filteredData.filter(r => r.is_to_try === true);
       } else if (filters.toTry === false) {
-        filteredData = filteredData.filter(r => r.to_try === false);
+        filteredData = filteredData.filter(r => r.is_to_try === false);
         if (filters.rating > 0) {
           filteredData = filteredData.filter(r => r.rating >= filters.rating);
         }
@@ -60,26 +66,35 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
           filteredData.sort((a, b) => a.name.localeCompare(b.name));
           break;
         case 'rating':
-          filteredData.sort((a, b) => b.rating - a.rating);
+          filteredData.sort((a, b) => (b.rating || 0) - (a.rating || 0));
           break;
         case 'dateAdded':
         default:
           filteredData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
 
-      setRestaurants(filteredData);
-      setTotalCount(filteredData.length);
-      setHasResults(filteredData.length > 0);
+      if (isMounted) {
+        setRestaurants(filteredData);
+        setTotalCount(filteredData.length);
+        setHasResults(filteredData.length > 0);
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error fetching restaurants:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      if (isMounted) {
+        setError(error.message);
+        setLoading(false);
+      }
     }
-  }, [userId, filters, sortOption, searchQuery]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, filters, sortOption, searchQuery, isViewingOwnRestaurants]);
 
   useEffect(() => {
-    fetchRestaurants();
+    const cleanup = fetchRestaurants();
+    return () => cleanup;
   }, [fetchRestaurants]);
 
   const updateLocalRestaurant = useCallback((updatedRestaurant) => {

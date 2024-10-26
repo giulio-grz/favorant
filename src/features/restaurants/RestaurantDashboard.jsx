@@ -17,9 +17,9 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOption }) => {
   const navigate = useNavigate();
   const { id: viewingUserId } = useParams();
+  const mounted = React.useRef(true);
   const [viewingUser, setViewingUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,40 +34,71 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [isRemovingRestaurant, setIsRemovingRestaurant] = useState(null);
   const [alert, setAlert] = useState({ show: false, message: '', type: 'info' });
+  const [loadingStates, setLoadingStates] = useState({
+    restaurants: false,
+    user: viewingUserId ? true : false,
+    search: false
+  });
 
-  useEffect(() => {
-    const fetchViewingUser = async () => {
-      if (viewingUserId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', viewingUserId)
-          .single();
-        setViewingUser(profile);
-      }
-    };
-    fetchViewingUser();
-  }, [viewingUserId]);
+  const setLoadingState = (key, value) => {
+    if (mounted.current) {
+      setLoadingStates(prev => ({ ...prev, [key]: value }));
+    }
+  };
 
   const fetchRestaurants = useCallback(async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const fetchedRestaurants = await getUserRestaurants(viewingUserId || user.id);
-      console.log("Fetched restaurants in component:", fetchedRestaurants);
-      setRestaurants(fetchedRestaurants);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching restaurants in component:", err);
-      setError('Failed to fetch restaurants. Please try again later.');
-    } finally {
-      setLoading(false);
+    console.log("Starting fetchRestaurants with user:", user);
+    if (!user?.id) {
+      console.log("No user ID available, skipping fetch");
+      setLoadingState('restaurants', false);
+      return;
     }
-  }, [user, viewingUserId]);
+    
+    try {
+      setLoadingState('restaurants', true);
+      console.log("Fetching restaurants for user ID:", viewingUserId || user.id);
+      
+      const targetUserId = viewingUserId || user.id;
+      const fetchedRestaurants = await getUserRestaurants(targetUserId, targetUserId);
+      
+      console.log("Fetched restaurants:", fetchedRestaurants);
+      
+      if (mounted.current) {
+        setRestaurants(fetchedRestaurants || []);
+        setError(null);
+      }
+    } catch (err) {
+      console.error("Error fetching restaurants:", err);
+      if (mounted.current) {
+        setError('Failed to fetch restaurants. Please try again later.');
+        setRestaurants([]);
+      }
+    } finally {
+      if (mounted.current) {
+        setLoadingState('restaurants', false);
+      }
+    }
+  }, [user?.id, viewingUserId]);
 
   useEffect(() => {
-    fetchRestaurants();
-  }, [fetchRestaurants]);
+    console.log("Fetch restaurants effect running");
+    if (user?.id) {
+      console.log("User ID available, triggering fetch");
+      fetchRestaurants();
+    } else {
+      console.log("No user ID available yet");
+    }
+  }, [fetchRestaurants, user?.id]);
+
+  useEffect(() => {
+    console.log("Fetch restaurants effect running");
+    if (user?.id) {
+      console.log("User ID available, triggering fetch");
+      fetchRestaurants();
+    } else {
+      console.log("No user ID available yet");
+    }
+  }, [fetchRestaurants, user?.id]);
 
   const deleteLocalRestaurant = useCallback((restaurantId) => {
     setRestaurants(prevRestaurants => 
@@ -75,25 +106,32 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     );
   }, []);
 
-  const handleRestaurantClick = useCallback((restaurantId) => {
+  const handleRestaurantClick = (restaurantId) => {
     if (viewingUserId) {
-      // If we're viewing someone else's profile, include their ID in the URL
       navigate(`/user/${viewingUserId}/restaurant/${restaurantId}`);
     } else {
-      // If we're viewing our own profile, use the regular route
-      navigate(`/restaurant/${restaurantId}`);
+      navigate(`/user/${user.id}/restaurant/${restaurantId}`);
     }
-  }, [navigate, viewingUserId]);
+  };
 
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query);
     if (query.length > 2) {
       try {
+        setLoadingState('search', true);
         const results = await searchRestaurants(query);
-        setSearchResults(results);
+        if (mounted.current) {
+          setSearchResults(results);
+        }
       } catch (error) {
         console.error('Error searching restaurants:', error);
-        setAlert({ show: true, message: 'Failed to search restaurants. Please try again.', type: 'error' });
+        if (mounted.current) {
+          setAlert({ show: true, message: 'Failed to search restaurants. Please try again.', type: 'error' });
+        }
+      } finally {
+        if (mounted.current) {
+          setLoadingState('search', false);
+        }
       }
     } else {
       setSearchResults([]);
@@ -116,30 +154,41 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
       }
       
       await fetchRestaurants();
-      setAlert({ show: true, message: message, type: alertType });
-      setSearchResults([]);
-      setSearchQuery('');
+      if (mounted.current) {
+        setAlert({ show: true, message: message, type: alertType });
+        setSearchResults([]);
+        setSearchQuery('');
+      }
     } catch (error) {
       console.error('Error adding restaurant to list:', error);
-      setAlert({ show: true, message: `Failed to add restaurant to your list: ${error.message}`, type: 'error' });
+      if (mounted.current) {
+        setAlert({ show: true, message: `Failed to add restaurant to your list: ${error.message}`, type: 'error' });
+      }
     }
   }, [user.id, fetchRestaurants]);
 
   const handleRemoveFromList = async (restaurantId) => {
     try {
+      setLoadingState('restaurants', true);
+      console.log('Attempting to remove restaurant:', restaurantId);
       const result = await removeRestaurantFromUserList(user.id, restaurantId);
-      if (result.success) {
+      console.log('Remove restaurant result:', result);
+      
+      if (result) {
         setRestaurants(prevRestaurants => 
           prevRestaurants.filter(restaurant => restaurant.id !== restaurantId)
         );
-        setAlert({ show: true, message: result.message, type: "success" });
+        setAlert({ show: true, message: 'Restaurant removed successfully', type: "success" });
         setIsRemovingRestaurant(null);
-      } else {
-        throw new Error(result.message || 'Failed to remove restaurant');
+        
+        // Force a refresh of the restaurants list
+        await fetchRestaurants();
       }
     } catch (error) {
-      console.error('Error removing restaurant from list:', error);
+      console.error('Error removing restaurant:', error);
       setAlert({ show: true, message: `Failed to remove restaurant: ${error.message}`, type: "error" });
+    } finally {
+      setLoadingState('restaurants', false);
     }
   };
 
@@ -157,8 +206,15 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     return matchesTab && matchesSearch;
   });
 
-  if (loading) return <LoadingSpinner />;
-  if (error) return <ErrorMessage message={error} />;
+  const isLoading = loadingStates.restaurants && !restaurants.length;
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return <ErrorMessage message={error} />;
+  }
 
   return (
     <div className="space-y-6">

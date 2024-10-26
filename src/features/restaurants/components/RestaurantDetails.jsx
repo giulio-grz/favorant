@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription 
+} from '@/components/ui/dialog';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,123 +30,197 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Edit, Trash2, MoreVertical, Star } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Star, FileEdit, Plus, Trash2 } from 'lucide-react';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
-import RestaurantNotes from './RestaurantNotes';
 import { 
   supabase,
-  removeRestaurantFromUserList,
-  addReview
+  addBookmark,
+  addReview,
+  addNote,
+  removeRestaurantFromUserList
 } from '@/supabaseClient';
 
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
   const { id, userId: viewingUserId } = useParams();
   const navigate = useNavigate();
-  const { restaurant, loading, error, refetch } = useRestaurantDetails(id, viewingUserId);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const { restaurant, loading, error, refetch, userBookmark } = useRestaurantDetails(id, viewingUserId);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [rating, setRating] = useState(0);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
   const [alert, setAlert] = useState({ show: false, message: '', type: 'info' });
-  const [isInUserList, setIsInUserList] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [loadingStates, setLoadingStates] = useState({
+    removing: false
+  });
 
-  useEffect(() => {
-    const checkUserList = async () => {
-      try {
-        // Check for bookmark
-        const { data: bookmark } = await supabase
-          .from('bookmarks')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('restaurant_id', id)
-          .maybeSingle();
+  const setLoadingState = (key, value) => {
+    setLoadingStates(prev => ({ ...prev, [key]: value }));
+  };
 
-        // Check for review
-        const { data: review } = await supabase
-          .from('restaurant_reviews')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('restaurant_id', id)
-          .maybeSingle();
-
-        setIsInUserList(!!(bookmark || review));
-      } catch (error) {
-        console.error('Error checking user list:', error);
-      }
-    };
-
-    checkUserList();
-  }, [user.id, id]);
-
+  // Format utilities
   const formatRating = (rating) => {
     return Number.isInteger(rating) ? rating.toFixed(1) : rating.toFixed(1);
-  };  
+  };
 
-  const { aggregateRating, reviewCount } = useMemo(() => {
-    if (!restaurant || !restaurant.restaurant_reviews) {
-      return { aggregateRating: 0, reviewCount: 0 };
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Calculate aggregate rating
+  const { aggregateRating, reviewCount, ownerReview } = useMemo(() => {
+    if (!restaurant) {
+      return { aggregateRating: 0, reviewCount: 0, ownerReview: null };
     }
-    const reviews = restaurant.restaurant_reviews;
-    const count = reviews.length;
-    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    
     return {
-      aggregateRating: count > 0 ? sum / count : 0,
-      reviewCount: count
+      aggregateRating: restaurant.aggregate_rating || 0,
+      reviewCount: restaurant.review_count || 0,
+      ownerReview: restaurant.user_review || null
     };
   }, [restaurant]);
 
-  const userReview = useMemo(() => {
-    if (!restaurant || !restaurant.restaurant_reviews) return null;
-    return restaurant.restaurant_reviews.find(review => 
-      viewingUserId 
-        ? review.user_id === viewingUserId 
-        : review.user_id === user.id
-    );
-  }, [restaurant, user.id, viewingUserId]);
-
-  const handleReviewSubmit = async () => {
-    if (viewingUserId) return; // Don't allow review submission when viewing other's profile
+  // Get notes based on the viewing context
+  const displayedNote = useMemo(() => {
+    if (!restaurant?.user_notes?.length) return null;
     
+    // If viewing another user's list, show their note
+    if (viewingUserId && viewingUserId !== user.id) {
+      return restaurant.user_notes.find(note => note.user_id === viewingUserId);
+    }
+    
+    // If viewing our own list, show our note
+    if (!viewingUserId || viewingUserId === user.id) {
+      return restaurant.user_notes.find(note => note.user_id === user.id);
+    }
+    
+    return null;
+  }, [restaurant?.user_notes, viewingUserId, user.id]);
+
+  useEffect(() => {
+    if (restaurant) {
+      setIsOwner(restaurant.created_by === user.id);
+      if (displayedNote) {
+        setNoteContent(displayedNote.note);
+      }
+    }
+  }, [restaurant, user.id, displayedNote]);
+
+  // Handle import
+  const handleImport = async (type) => {
     try {
-      const result = await addReview({
+      if (type === 'to_try') {
+        await addBookmark(user.id, restaurant.id, true);
+        setAlert({ show: true, message: 'Added to your "To Try" list', type: 'success' });
+        setIsImportDialogOpen(false);
+      } else {
+        setIsImportDialogOpen(false);
+        setIsReviewDialogOpen(true);
+      }
+    } catch (error) {
+      console.error('Error importing restaurant:', error);
+      setAlert({ show: true, message: 'Failed to import restaurant', type: 'error' });
+    }
+  };
+
+  // Handle review
+  const handleReviewSubmit = async () => {
+    try {
+      if (!rating) {
+        setAlert({ show: true, message: 'Please set a rating', type: 'error' });
+        return;
+      }
+  
+      await addReview({
         user_id: user.id,
         restaurant_id: restaurant.id,
-        rating: reviewRating
+        rating: rating
       });
-      
+  
+      // Wait a bit for the trigger to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
       await refetch();
       setIsReviewDialogOpen(false);
-      setReviewRating(0);
+      setRating(0);
+      setAlert({ show: true, message: 'Review added successfully', type: 'success' });
     } catch (error) {
       console.error('Error submitting review:', error);
       setAlert({ show: true, message: 'Failed to submit review', type: 'error' });
     }
   };
 
-  const handleRemoveFromList = async (restaurantId) => {
-    if (viewingUserId) return; // Don't allow removal when viewing other's profile
-
+  // Handle note
+  const handleNoteSave = async () => {
     try {
-      const result = await removeRestaurantFromUserList(user.id, restaurantId);
-      if (result.success) {
-        deleteLocalRestaurant(restaurantId); // Make sure this is being called
-        navigate('/'); // Navigate back to main list
-      } else {
-        throw new Error('Failed to remove restaurant');
+      if (!noteContent.trim()) {
+        setAlert({ show: true, message: 'Note cannot be empty', type: 'error' });
+        return;
       }
+
+      if (displayedNote) {
+        const { error: updateError } = await supabase
+          .from('notes')
+          .update({ note: noteContent })
+          .eq('id', displayedNote.id);
+
+        if (updateError) throw updateError;
+      } else {
+        await addNote({
+          user_id: user.id,
+          restaurant_id: restaurant.id,
+          note: noteContent
+        });
+      }
+
+      await refetch();
+      setEditingNote(false);
+      setAlert({ show: true, message: 'Note saved successfully', type: 'success' });
     } catch (error) {
-      console.error('Error removing restaurant from list:', error);
-      setAlert({ show: true, message: 'Failed to remove restaurant', type: 'error' });
+      console.error('Error saving note:', error);
+      setAlert({ show: true, message: 'Failed to save note', type: 'error' });
     }
-  };  
+  };
 
-  const isOwner = restaurant?.created_by === user.id;
+  const handleRemoveRestaurant = async () => {
+    try {
+      setLoadingState('removing', true);
+      console.log('Removing restaurant:', restaurant.id, 'for user:', user.id);
+      
+      await removeRestaurantFromUserList(user.id, restaurant.id);
+      
+      setAlert({ 
+        show: true, 
+        message: 'Restaurant removed successfully', 
+        type: 'success' 
+      });
+      
+      navigate(-1);
+    } catch (error) {
+      console.error('Error removing restaurant:', error);
+      setAlert({ 
+        show: true, 
+        message: 'Failed to remove restaurant: ' + error.message, 
+        type: 'error' 
+      });
+    } finally {
+      setLoadingState('removing', false);
+    }
+  };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
-  if (!restaurant) return <div>Restaurant not found</div>;
+  if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  if (error) return <div className="flex justify-center items-center h-screen">Error: {error}</div>;
+  if (!restaurant) return <div className="flex justify-center items-center h-screen">Restaurant not found</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-20">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <Button
           variant="ghost"
@@ -147,50 +230,48 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
 
-        {!viewingUserId && isInUserList && (
+        {viewingUserId && viewingUserId !== user.id && !userBookmark && (
+          <Button onClick={() => setIsImportDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add to My List
+          </Button>
+        )}
+
+        {(!viewingUserId || viewingUserId === user.id) && userBookmark && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
+                <MoreHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {isOwner && (
-                <DropdownMenuItem onClick={() => navigate(`/edit/${restaurant.id}`)}>
-                  <Edit className="mr-2 h-4 w-4" /> Edit
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} className="text-red-600">
-                <Trash2 className="mr-2 h-4 w-4" /> Remove from list
+              <DropdownMenuItem 
+                className="text-destructive focus:text-destructive"
+                onClick={() => setAlert({
+                  show: true,
+                  message: 'Are you sure you want to remove this restaurant?',
+                  type: 'delete'
+                })}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Remove from list
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
 
+      {/* Restaurant Image/Banner */}
       <div className="relative bg-slate-100 h-64 rounded-xl mb-6 flex items-center justify-center">
         <div className="text-6xl font-bold text-slate-400">
           {restaurant?.name.substring(0, 2).toUpperCase()}
         </div>
-        {restaurant?.to_try ? (
-          <div className="absolute bottom-4 left-4">
-            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-              To Try
-            </Badge>
-          </div>
-        ) : (
-          userReview && (
-            <div className="absolute bottom-4 right-4 bg-white rounded-full px-4 py-1 text-sm font-semibold">
-              {formatRating(userReview.rating)}
-            </div>
-          )
-        )}
       </div>
 
-      <div className="space-y-6">
+      {/* Basic Info */}
+      <div className="space-y-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold mb-2">{restaurant?.name}</h1>
-          <div className="flex items-center space-x-2 text-gray-500">
+          <div className="flex items-center space-x-2 text-gray-500 text-sm">
             <span>{restaurant?.restaurant_types?.name}</span>
             <span>•</span>
             <span>{restaurant?.cities?.name}</span>
@@ -198,42 +279,19 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
             <span>{'€'.repeat(restaurant?.price || 0)}</span>
           </div>
           {restaurant?.address && (
-            <div className="text-gray-500 mt-1">{restaurant.address}</div>
+            <div className="text-gray-500 text-sm mt-1">{restaurant.address}</div>
           )}
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          {!viewingUserId && isInUserList && !restaurant?.to_try && (
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Your Rating</h2>
-              {userReview ? (
-                <div>
-                  <div className="text-3xl font-bold mb-2 flex items-center">
-                    {formatRating(userReview.rating)}
-                    <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      setReviewRating(userReview.rating);
-                      setIsReviewDialogOpen(true);
-                    }}
-                    className="mt-4"
-                  >
-                    Edit Rating
-                  </Button>
-                </div>
-              ) : (
-                <Button onClick={() => setIsReviewDialogOpen(true)}>
-                  Add Rating
-                </Button>
-              )}
-            </div>
-          )}
-
-          <div className={!viewingUserId && isInUserList ? "col-span-1" : "col-span-2"}>
-            <h2 className="text-lg font-semibold mb-2">Overall Rating</h2>
+      {/* Reviews Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Overall Rating */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Overall Rating</CardTitle>
+          </CardHeader>
+          <CardContent>
             {aggregateRating > 0 ? (
               <div>
                 <div className="text-3xl font-bold mb-2 flex items-center">
@@ -247,43 +305,149 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
             ) : (
               <div className="text-gray-500">No ratings yet</div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Notes Section */}
-        {!viewingUserId && isInUserList && (
-          <div className="mt-8">
-            <RestaurantNotes user={user} restaurantId={id} />
-          </div>
+        {/* Owner's Rating */}
+        {ownerReview && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">
+                {viewingUserId && viewingUserId !== user.id
+                  ? `${restaurant.owner_username}'s Rating`
+                  : "My Rating"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold mb-2 flex items-center">
+                {formatRating(ownerReview.rating)}
+                <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
+              </div>
+              <div className="text-sm text-gray-500">
+                Added {formatDate(ownerReview.created_at)}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove from your list?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {restaurant?.name} from your list. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => handleRemoveFromList(restaurant.id)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Notes Section - Only show if there are notes and it's appropriate */}
+      {displayedNote && (
+        <Card className="mb-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-semibold">
+              {viewingUserId && viewingUserId !== user.id
+                ? `${restaurant.owner_username}'s Notes`
+                : "My Notes"}
+            </CardTitle>
+            {(!viewingUserId || viewingUserId === user.id) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingNote(true)}
+              >
+                <FileEdit className="h-4 w-4" />
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {editingNote ? (
+              <div className="space-y-4">
+                <Textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  className="min-h-[100px]"
+                />
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingNote(false);
+                      setNoteContent(displayedNote.note);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleNoteSave}>Save</Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="whitespace-pre-wrap">{displayedNote.note}</p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Last updated: {formatDate(displayedNote.created_at)}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{userReview ? 'Edit' : 'Add'} Rating</AlertDialogTitle>
-          </AlertDialogHeader>
-          <div className="space-y-4">
+      {/* Import Dialog */}
+      <Dialog 
+        open={isImportDialogOpen}
+        onOpenChange={(open) => {
+          setIsImportDialogOpen(open);
+          if (!open) {
+            setIsReviewDialogOpen(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add to Your List</DialogTitle>
+            <DialogDescription>
+              Choose how you want to add this restaurant to your list
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto p-4"
+              onClick={() => handleImport('to_try')}
+            >
+              <div className="flex flex-col items-start text-left">
+                <span className="font-medium">Add to "To Try" List</span>
+                <span className="text-sm text-muted-foreground mt-1">
+                Save this restaurant to try later
+                </span>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto p-4"
+              onClick={() => handleImport('review')}
+            >
+              <div className="flex flex-col items-start text-left">
+                <span className="font-medium">Add Review</span>
+                <span className="text-sm text-muted-foreground mt-1">
+                  I've visited this restaurant and want to add a review
+                </span>
+              </div>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog 
+        open={isReviewDialogOpen}
+        onOpenChange={(open) => {
+          setIsReviewDialogOpen(open);
+          if (!open) {
+            setRating(0);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Your Review</DialogTitle>
+            <DialogDescription>
+              Rate your experience at {restaurant.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
             <div className="space-y-2">
               <Label>Rating</Label>
               <div className="flex items-center space-x-4">
@@ -291,36 +455,64 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                   min={0}
                   max={10}
                   step={0.5}
-                  value={[reviewRating]}
-                  onValueChange={(value) => setReviewRating(value[0])}
+                  value={[rating]}
+                  onValueChange={(value) => setRating(value[0])}
                   className="flex-1"
                 />
-                <div className="w-16 text-right font-medium">
-                  {reviewRating === 10 ? '10' : reviewRating.toFixed(1)}
+                <div className="w-16 text-right font-medium bg-slate-100 px-2 py-1 rounded">
+                  {rating === 10 ? '10' : rating.toFixed(1)}/10
                 </div>
               </div>
             </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReviewDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleReviewSubmit}>
+              Save Review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Alert Dialog */}
+      <AlertDialog 
+        open={alert.show} 
+        onOpenChange={(open) => {
+          setAlert(prev => ({ ...prev, show: open }));
+          if (!open && alert.type === 'delete') {
+            handleRemoveRestaurant();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {alert.type === 'delete' ? 'Remove Restaurant' : alert.type === 'error' ? 'Error' : 'Success'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{alert.message}</AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReviewSubmit}>Save Rating</AlertDialogAction>
+            {alert.type === 'delete' ? (
+              <>
+                <AlertDialogCancel onClick={() => setAlert({ ...alert, show: false })}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Remove
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={() => setAlert({ ...alert, show: false })}>
+                OK
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {alert.show && (
-        <AlertDialog open={alert.show} onOpenChange={() => setAlert({ ...alert, show: false })}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{alert.type === 'error' ? 'Error' : 'Success'}</AlertDialogTitle>
-              <AlertDialogDescription>{alert.message}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction onClick={() => setAlert({ ...alert, show: false })}>OK</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 };
