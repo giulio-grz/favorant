@@ -65,21 +65,27 @@ function App() {
 
   const initializeAuth = async () => {
     try {
+      setLoading(true);
       // Get initial session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
-
+  
       if (session?.user) {
-        const { data: profile } = await supabase
+        // Get profile in the same try block to ensure atomicity
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
+          
+        if (profileError) throw profileError;
         
         setUser({ ...session.user, profile });
       }
     } catch (error) {
       console.error('Error initializing auth:', error);
+      // Clear any partial state on error
+      setUser(null);
     } finally {
       setLoading(false);
     }
