@@ -14,9 +14,19 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const executeWithRetry = async (operation, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
   try {
-    return await operation();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), 10000)
+    );
+    
+    const operationPromise = operation();
+    
+    return await Promise.race([timeoutPromise, operationPromise]);
   } catch (error) {
-    if (retries > 0 && (error.status === 429 || error.status === 503)) {
+    if (retries > 0 && (
+      error.status === 429 || 
+      error.status === 503 || 
+      error.message === 'Request timeout'
+    )) {
       console.log(`Retrying operation. Attempts remaining: ${retries}`);
       await wait(delay);
       return executeWithRetry(operation, retries - 1, delay * 2);

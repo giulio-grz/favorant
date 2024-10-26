@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getUserRestaurants } from '../../../supabaseClient';
 
 export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, searchQuery) => {
@@ -7,6 +7,8 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [hasResults, setHasResults] = useState(true);
+  const mountedRef = useRef(true);
+  const abortControllerRef = useRef(null);
 
   const fetchRestaurants = useCallback(async () => {
     if (!userId) {
@@ -14,15 +16,21 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
       return;
     }
 
-    let isMounted = true;
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+
     setLoading(true);
     setError(null);
 
     try {
-      // Pass the viewingUserId directly
       const data = await getUserRestaurants(isViewingOwnRestaurants ? userId : userId);
       
-      if (!isMounted) return;
+      if (!mountedRef.current) return;
 
       let filteredData = data;
       
@@ -73,40 +81,47 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
           filteredData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
 
-      if (isMounted) {
+      if (mountedRef.current) {
         setRestaurants(filteredData);
         setTotalCount(filteredData.length);
         setHasResults(filteredData.length > 0);
         setLoading(false);
       }
     } catch (error) {
+      if (error.name === 'AbortError') return;
+      
       console.error('Error fetching restaurants:', error);
-      if (isMounted) {
+      if (mountedRef.current) {
         setError(error.message);
         setLoading(false);
       }
     }
-
-    return () => {
-      isMounted = false;
-    };
   }, [userId, filters, sortOption, searchQuery, isViewingOwnRestaurants]);
 
   useEffect(() => {
-    const cleanup = fetchRestaurants();
-    return () => cleanup;
+    mountedRef.current = true;
+    fetchRestaurants();
+    
+    return () => {
+      mountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchRestaurants]);
 
   const updateLocalRestaurant = useCallback((updatedRestaurant) => {
-    setRestaurants(prevRestaurants =>
-      prevRestaurants.map(restaurant =>
-        restaurant.id === updatedRestaurant.id ? { ...restaurant, ...updatedRestaurant } : restaurant
-      )
-    );
+    if (mountedRef.current) {
+      setRestaurants(prevRestaurants =>
+        prevRestaurants.map(restaurant =>
+          restaurant.id === updatedRestaurant.id ? { ...restaurant, ...updatedRestaurant } : restaurant
+        )
+      );
+    }
   }, []);
 
   const addLocalRestaurant = useCallback((newRestaurant) => {
-    if (isViewingOwnRestaurants) {
+    if (mountedRef.current && isViewingOwnRestaurants) {
       setRestaurants(prevRestaurants => [newRestaurant, ...prevRestaurants]);
       setTotalCount(prevCount => prevCount + 1);
       setHasResults(true);
@@ -114,12 +129,14 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
   }, [isViewingOwnRestaurants]);
 
   const deleteLocalRestaurant = useCallback((id) => {
-    setRestaurants(prevRestaurants => {
-      const updatedRestaurants = prevRestaurants.filter(restaurant => restaurant.id !== id);
-      setTotalCount(updatedRestaurants.length);
-      setHasResults(updatedRestaurants.length > 0);
-      return updatedRestaurants;
-    });
+    if (mountedRef.current) {
+      setRestaurants(prevRestaurants => {
+        const updatedRestaurants = prevRestaurants.filter(restaurant => restaurant.id !== id);
+        setTotalCount(updatedRestaurants.length);
+        setHasResults(updatedRestaurants.length > 0);
+        return updatedRestaurants;
+      });
+    }
   }, []);
 
   return { 
