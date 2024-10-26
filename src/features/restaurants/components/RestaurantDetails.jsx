@@ -188,6 +188,25 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
     }
   };
 
+  const handleDeleteNote = async () => {
+    try {
+      if (!displayedNote?.id) return;
+  
+      const { error: deleteError } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', displayedNote.id);
+  
+      if (deleteError) throw deleteError;
+  
+      await refetch();
+      setAlert({ show: true, message: 'Note deleted successfully', type: 'success' });
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      setAlert({ show: true, message: 'Failed to delete note', type: 'error' });
+    }
+  };
+
   const handleRemoveRestaurant = async () => {
     try {
       setLoadingState('removing', true);
@@ -236,7 +255,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </Button>
         )}
 
-        {(!viewingUserId || viewingUserId === user.id) && userBookmark && (
+        {(!viewingUserId || viewingUserId === user.id) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -341,13 +360,28 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                 : "My Notes"}
             </CardTitle>
             {(!viewingUserId || viewingUserId === user.id) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setEditingNote(true)}
-              >
-                <FileEdit className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setEditingNote(true)}
+                >
+                  <FileEdit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setAlert({
+                      show: true,
+                      message: 'Are you sure you want to delete this note?',
+                      type: 'delete-note'
+                    });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             )}
           </CardHeader>
           <CardContent>
@@ -481,20 +515,26 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         open={alert.show} 
         onOpenChange={(open) => {
           setAlert(prev => ({ ...prev, show: open }));
-          if (!open && alert.type === 'delete') {
-            handleRemoveRestaurant();
+          if (!open) {
+            if (alert.type === 'delete') {
+              handleRemoveRestaurant();
+            } else if (alert.type === 'delete-note') {
+              handleDeleteNote();
+            }
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {alert.type === 'delete' ? 'Remove Restaurant' : alert.type === 'error' ? 'Error' : 'Success'}
+              {alert.type === 'delete' ? 'Remove Restaurant' : 
+              alert.type === 'delete-note' ? 'Delete Note' :
+              alert.type === 'error' ? 'Error' : 'Success'}
             </AlertDialogTitle>
             <AlertDialogDescription>{alert.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            {alert.type === 'delete' ? (
+            {(alert.type === 'delete' || alert.type === 'delete-note') ? (
               <>
                 <AlertDialogCancel onClick={() => setAlert({ ...alert, show: false })}>
                   Cancel
@@ -502,7 +542,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Remove
+                  {alert.type === 'delete' ? 'Remove' : 'Delete'}
                 </AlertDialogAction>
               </>
             ) : (
