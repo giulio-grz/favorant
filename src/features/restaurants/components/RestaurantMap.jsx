@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leaflet';
-import * as L from 'leaflet';  // Import Leaflet properly
+import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import markerIcon from '@/assets/marker-icon.png';
 
-// Fix for default marker icon in react-leaflet
-const icon = new L.Icon({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+// Create custom icon
+const customIcon = new L.Icon({
+  iconUrl: markerIcon,
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+  iconSize: [25, 31],     // Reduced from 33x41 to about 75%
+  iconAnchor: [12.5, 31], // Half the new width, full new height
+  popupAnchor: [1, -31],  // Adjusted for new height
+  shadowSize: [31, 31]    // Reduced shadow to match
 });
 
 const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }) => {
@@ -136,7 +136,7 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        <Marker position={position}>
+        <Marker position={position} icon={customIcon}>
           <Popup>
             <div className="text-sm">
               <strong>{address}</strong>

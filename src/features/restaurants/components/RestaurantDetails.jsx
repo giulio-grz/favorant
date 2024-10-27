@@ -464,72 +464,94 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         </CardContent>
       </Card>
 
-      {/* Notes Section - Only show if there are notes and it's appropriate */}
-      {displayedNote && (
-        <Card className="mb-8">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">
-              {viewingUserId && viewingUserId !== user.id
-                ? `${restaurant.owner_username}'s Notes`
-                : "My Notes"}
-            </CardTitle>
-            {(!viewingUserId || viewingUserId === user.id) && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingNote(true)}
-                >
-                  <FileEdit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setAlert({
-                      show: true,
-                      message: 'Are you sure you want to delete this note?',
-                      type: 'delete-note'
-                    });
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            {editingNote ? (
-              <div className="space-y-4">
-                <Textarea
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  className="min-h-[100px]"
-                />
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingNote(false);
-                      setNoteContent(displayedNote.note);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleNoteSave}>Save</Button>
+      {/* Notes Section */}
+        {(displayedNote || (!viewingUserId || viewingUserId === user.id)) && (
+          <Card className="mb-8">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">
+                {viewingUserId && viewingUserId !== user.id
+                  ? `${restaurant.owner_username}'s Notes`
+                  : "Notes"}
+              </CardTitle>
+              {(!viewingUserId || viewingUserId === user.id) && (
+                <div className="flex items-center gap-2">
+                  {displayedNote ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingNote(true)}
+                      >
+                        <FileEdit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setAlert({
+                            show: true,
+                            message: 'Are you sure you want to delete this note?',
+                            type: 'delete-note'
+                          });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setNoteContent('');
+                        setEditingNote(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Note
+                    </Button>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div>
-                <p className="whitespace-pre-wrap">{displayedNote.note}</p>
-                <p className="text-sm text-gray-500 mt-4">
-                  Last updated: {formatDate(displayedNote.created_at)}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardHeader>
+            <CardContent>
+              {displayedNote ? (
+                editingNote ? (
+                  <div className="space-y-4">
+                    <Textarea
+                      value={noteContent}
+                      onChange={(e) => setNoteContent(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingNote(false);
+                          setNoteContent(displayedNote.note);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleNoteSave}>Save</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="whitespace-pre-wrap">{displayedNote.note}</p>
+                    <p className="text-sm text-gray-500 mt-4">
+                      Last updated: {formatDate(displayedNote.created_at)}
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No notes yet. Click 'Add Note' to create one.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       {/* Import Dialog */}
       <Dialog 
