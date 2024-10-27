@@ -148,3 +148,44 @@
 .slide-in-from-top-5 {
   animation-name: slide-in-from-top-5;
 }
+
+/* Custom zoom control styles */
+.leaflet-control-zoom {
+  border: none !important;
+  margin: 15px !important; /* Add margin from the edges */
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+  background-color: white !important;
+  color: #374151 !important; /* text-gray-700 */
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  border: 1px solid #e5e7eb !important; /* border-gray-200 */
+  transition: all 0.2s ease !important;
+}
+
+.leaflet-control-zoom-in {
+  border-top-left-radius: 6px !important;
+  border-top-right-radius: 6px !important;
+  border-bottom: none !important;
+}
+
+.leaflet-control-zoom-out {
+  border-bottom-left-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+  color: #111827 !important; /* text-gray-900 */
+}
+
+/* Optional: Add box shadow */
+.leaflet-control-zoom {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
