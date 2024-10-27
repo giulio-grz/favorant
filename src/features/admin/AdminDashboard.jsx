@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Edit, Trash, MoreHorizontal, Check, Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { executeWithRetry } from '@/supabaseClient';
 
 const AdminDashboard = () => {
   const [user, setUser] = useState(null);
@@ -69,9 +70,68 @@ const AdminDashboard = () => {
 
   const handleApprove = async (id, type) => {
     try {
-      if (type === 'restaurant') await approveRestaurant(id);
-      else if (type === 'city') await approveCity(id);
-      else if (type === 'type') await approveType(id);
+      if (type === 'restaurant') {
+        // Get restaurant details first
+        const { data: restaurant } = await supabase
+          .from('restaurants')
+          .select(`
+            id,
+            address,
+            cities (
+              name
+            )
+          `)
+          .eq('id', id)
+          .single();
+  
+        if (restaurant && restaurant.address && restaurant.cities?.name) {
+          // Geocode the address
+          const searchQuery = `${restaurant.address}, ${restaurant.cities.name}`;
+          
+          const response = await executeWithRetry(async () => {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+              {
+                headers: {
+                  'Accept': 'application/json',
+                  'User-Agent': 'RestaurantApp/1.0'
+                }
+              }
+            );
+            
+            if (!res.ok) {
+              throw new Error('Geocoding failed');
+            }
+            
+            return res.json();
+          });
+  
+          if (response && response.length > 0) {
+            const { lat, lon } = response[0];
+            
+            // Update restaurant with coordinates and status
+            await supabase
+              .from('restaurants')
+              .update({
+                latitude: parseFloat(lat),
+                longitude: parseFloat(lon),
+                status: 'approved'
+              })
+              .eq('id', id);
+          } else {
+            // If geocoding fails, still approve but without coordinates
+            await approveRestaurant(id);
+          }
+        } else {
+          // If no address/city, just approve without coordinates
+          await approveRestaurant(id);
+        }
+      } else if (type === 'city') {
+        await approveCity(id);
+      } else if (type === 'type') {
+        await approveType(id);
+      }
+      
       fetchAllEntities();
       setAlert({ show: true, message: `${type} approved successfully.`, type: "success" });
     } catch (error) {

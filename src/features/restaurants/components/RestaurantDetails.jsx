@@ -39,6 +39,7 @@ import {
   addNote,
   removeRestaurantFromUserList
 } from '@/supabaseClient';
+import RestaurantMap from './RestaurantMap';
 
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
   const { id, userId: viewingUserId } = useParams();
@@ -112,6 +113,54 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       }
     }
   }, [restaurant, user.id, displayedNote]);
+
+  // Handle coordinates
+  const handleCoordinatesUpdate = async (lat, lon) => {
+    try {
+      if (!restaurant?.id || !lat || !lon) {
+        throw new Error('Missing required data for coordinate update');
+      }
+  
+      // Check if coordinates have actually changed
+      if (restaurant.latitude === lat && restaurant.longitude === lon) {
+        return; // Skip update if coordinates haven't changed
+      }
+  
+      // Update the database
+      const { error: updateError } = await supabase
+        .from('restaurants')
+        .update({
+          latitude: lat,
+          longitude: lon,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', restaurant.id);
+  
+      if (updateError) throw updateError;
+  
+      // Update local state
+      updateLocalRestaurant({
+        ...restaurant,
+        latitude: lat,
+        longitude: lon
+      });
+  
+      // Show success message only once
+      setAlert({ 
+        show: true, 
+        message: 'Location coordinates updated successfully', 
+        type: 'success' 
+      });
+  
+    } catch (error) {
+      console.error('Error updating coordinates:', error);
+      setAlert({ 
+        show: true, 
+        message: 'Failed to update location coordinates', 
+        type: 'error' 
+      });
+    }
+  };
 
   // Handle import
   const handleImport = async (type) => {
@@ -349,6 +398,22 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </Card>
         )}
       </div>
+
+      {/* Map Section */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Location</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RestaurantMap 
+            address={restaurant.address}
+            city={restaurant.cities?.name}
+            latitude={restaurant.latitude}
+            longitude={restaurant.longitude}
+            updateCoordinates={handleCoordinatesUpdate}
+          />
+        </CardContent>
+      </Card>
 
       {/* Notes Section - Only show if there are notes and it's appropriate */}
       {displayedNote && (
