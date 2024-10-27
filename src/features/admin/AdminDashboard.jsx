@@ -11,6 +11,8 @@ import { Edit, Trash, MoreHorizontal, Check, Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { executeWithRetry } from '@/supabaseClient';
+import { MapPin } from 'lucide-react';
+import { Label } from "@/components/ui/label";
 
 const AdminDashboard = () => {
   const [user, setUser] = useState(null);
@@ -31,6 +33,12 @@ const AdminDashboard = () => {
   const [newCityName, setNewCityName] = useState('');
   const [isAddingType, setIsAddingType] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
+  const [isGeocodingDialogOpen, setIsGeocodingDialogOpen] = useState(false);
+  const [geocodingDetails, setGeocodingDetails] = useState({
+    address: '',
+    cap: '',
+    city: ''
+  });
 
   useEffect(() => {
     checkAdminStatus();
@@ -463,10 +471,68 @@ const AdminDashboard = () => {
               onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
               placeholder="Address"
             />
-            <div className="flex justify-between space-x-4">
-              <div className="flex-1">
-                <Select
-                  value={editingRestaurant?.city_id?.toString() || ''}
+            <div className="space-y-2 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">Location Coordinates</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Current: {editingRestaurant?.latitude ? 
+                      `${editingRestaurant.latitude}, ${editingRestaurant.longitude}` : 
+                      'Not set'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Pre-fill the geocoding details with current values
+                    setGeocodingDetails({
+                      address: editingRestaurant?.address || '',
+                      cap: '',
+                      city: cities.find(c => c.id === editingRestaurant?.city_id)?.name || ''
+                    });
+                    setIsGeocodingDialogOpen(true);
+                  }}
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Recalculate Coordinates
+                </Button>
+              </div>
+
+              {/* Manual coordinate editing */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Latitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={editingRestaurant?.latitude || ''}
+                    onChange={(e) => setEditingRestaurant({
+                      ...editingRestaurant,
+                      latitude: parseFloat(e.target.value)
+                    })}
+                    placeholder="Latitude"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Longitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={editingRestaurant?.longitude || ''}
+                    onChange={(e) => setEditingRestaurant({
+                      ...editingRestaurant,
+                      longitude: parseFloat(e.target.value)
+                    })}
+                    placeholder="Longitude"
+                  />
+                </div>
+              </div>
+            </div>
+                  <div className="flex justify-between space-x-4">
+                    <div className="flex-1">
+                      <Select
+                        value={editingRestaurant?.city_id?.toString() || ''}
                   onValueChange={(value) => setEditingRestaurant({...editingRestaurant, city_id: parseInt(value)})}
                 >
                   <SelectTrigger>
@@ -530,6 +596,108 @@ const AdminDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Geocoding Dialog */}
+        <Dialog open={isGeocodingDialogOpen} onOpenChange={setIsGeocodingDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Geocode Address</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Street Address</Label>
+                <Input
+                  value={geocodingDetails.address}
+                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="e.g., Via Roma 123"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CAP (Optional)</Label>
+                <Input
+                  value={geocodingDetails.cap}
+                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, cap: e.target.value }))}
+                  placeholder="e.g., 00100"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input
+                  value={geocodingDetails.city}
+                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="e.g., Roma"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsGeocodingDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={async () => {
+                try {
+                  if (!geocodingDetails.address || !geocodingDetails.city) {
+                    setAlert({
+                      show: true,
+                      message: 'Address and city are required for geocoding',
+                      type: 'error'
+                    });
+                    return;
+                  }
+
+                  // Build search query with optional CAP
+                  const searchQuery = [
+                    geocodingDetails.address,
+                    geocodingDetails.cap,
+                    geocodingDetails.city,
+                    'Italy' // Adding country for better accuracy
+                  ].filter(Boolean).join(', ');
+
+                  const response = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
+                    {
+                      headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'RestaurantApp/1.0'
+                      }
+                    }
+                  );
+
+                  if (!response.ok) {
+                    throw new Error('Geocoding failed');
+                  }
+
+                  const data = await response.json();
+
+                  if (data && data.length > 0) {
+                    const { lat, lon } = data[0];
+                    setEditingRestaurant(prev => ({
+                      ...prev,
+                      latitude: parseFloat(lat),
+                      longitude: parseFloat(lon)
+                    }));
+                    setAlert({
+                      show: true,
+                      message: 'Coordinates updated successfully',
+                      type: 'success'
+                    });
+                    setIsGeocodingDialogOpen(false);
+                  } else {
+                    throw new Error('Location not found');
+                  }
+                } catch (error) {
+                  console.error('Geocoding error:', error);
+                  setAlert({
+                    show: true,
+                    message: 'Failed to geocode address',
+                    type: 'error'
+                  });
+                }
+              }}>
+                Update Coordinates
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       {/* Dialog for adding new type */}
       <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
