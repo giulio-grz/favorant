@@ -45,6 +45,17 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   const { id, userId: viewingUserId } = useParams();
   const navigate = useNavigate();
   const { restaurant, loading, error, refetch, userBookmark } = useRestaurantDetails(id, viewingUserId);
+  
+  console.log('Debug info:', {
+    viewingUserId,
+    currentUserId: user.id,
+    isViewingSelf: !viewingUserId || viewingUserId === user.id,
+    userBookmark,
+    restaurant: restaurant?.id,
+    hasReview: restaurant?.user_review ? true : false,
+    hasNote: restaurant?.user_notes?.length > 0
+  });
+
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [noteContent, setNoteContent] = useState('');
@@ -90,20 +101,14 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
   // Get notes based on the viewing context
   const displayedNote = useMemo(() => {
-    if (!restaurant?.user_notes?.length) return null;
+    if (!restaurant?.notes?.length) return null;
     
-    // If viewing another user's list, show their note
     if (viewingUserId && viewingUserId !== user.id) {
-      return restaurant.user_notes.find(note => note.user_id === viewingUserId);
+      return restaurant.notes.find(note => note.user_id === viewingUserId);
     }
     
-    // If viewing our own list, show our note
-    if (!viewingUserId || viewingUserId === user.id) {
-      return restaurant.user_notes.find(note => note.user_id === user.id);
-    }
-    
-    return null;
-  }, [restaurant?.user_notes, viewingUserId, user.id]);
+    return restaurant.notes.find(note => note.user_id === user.id);
+  }, [restaurant?.notes, viewingUserId, user.id]);
 
   useEffect(() => {
     if (restaurant) {
@@ -229,17 +234,18 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   // Handle note
   const handleNoteSave = async () => {
     try {
+      console.log('Saving note:', { noteContent, displayedNote });
       if (!noteContent.trim()) {
         setAlert({ show: true, message: 'Note cannot be empty', type: 'error' });
         return;
       }
-
+  
       if (displayedNote) {
         const { error: updateError } = await supabase
           .from('notes')
           .update({ note: noteContent })
           .eq('id', displayedNote.id);
-
+  
         if (updateError) throw updateError;
       } else {
         await addNote({
@@ -248,7 +254,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           note: noteContent
         });
       }
-
+  
       await refetch();
       setEditingNote(false);
       setAlert({ show: true, message: 'Note saved successfully', type: 'success' });
@@ -326,13 +332,16 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
-
-        {viewingUserId && viewingUserId !== user.id && !userBookmark && (
+  
+        {viewingUserId && 
+         viewingUserId !== user.id && 
+         !userBookmark &&
+         !restaurant?.has_user_review && (
           <Button onClick={() => setIsImportDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add to My List
           </Button>
         )}
-
+  
         {(!viewingUserId || viewingUserId === user.id) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -356,14 +365,14 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </DropdownMenu>
         )}
       </div>
-
+  
       {/* Restaurant Image/Banner */}
       <div className="relative bg-slate-100 h-64 rounded-xl mb-6 flex items-center justify-center">
         <div className="text-6xl font-bold text-slate-400">
-          {restaurant?.name.substring(0, 2).toUpperCase()}
+          {restaurant?.name?.substring(0, 2).toUpperCase()}
         </div>
       </div>
-
+  
       {/* Basic Info */}
       <div className="space-y-6 mb-8">
         <div>
@@ -405,47 +414,45 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </CardContent>
         </Card>
 
-        {/* Owner's Rating/Add Review Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg font-semibold">
-                {ownerReview ? "My Rating" : "Add Review"}
-              </CardTitle>
-              {(!viewingUserId || viewingUserId === user.id) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setRating(ownerReview?.rating || 5);
-                    setIsReviewDialogOpen(true);
-                  }}
-                >
-                  {ownerReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {ownerReview ? (
-              <>
-                <div className="text-3xl font-bold mb-2 flex items-center">
-                  {formatRating(ownerReview.rating)}
-                  <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
-                </div>
-                <div className="text-sm text-gray-500">
-                  Added {formatDate(ownerReview.created_at)}
-                </div>
-              </>
-            ) : (
-              <div className="text-gray-500">
-                {viewingUserId && viewingUserId !== user.id
-                  ? "No rating yet"
-                  : "Click to add your rating"}
+        {/* Rating Card - Only show for own reviews or when viewing others' reviews */}
+        {((!viewingUserId || viewingUserId === user.id) || ownerReview) && (
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg font-semibold">
+                  {ownerReview ? (viewingUserId === user.id ? "My Rating" : `${restaurant.owner_username}'s Rating`) : "Add Review"}
+                </CardTitle>
+                {(!viewingUserId || viewingUserId === user.id) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRating(ownerReview?.rating || 5);
+                      setIsReviewDialogOpen(true);
+                    }}
+                  >
+                    {ownerReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {ownerReview ? (
+                <>
+                  <div className="text-3xl font-bold mb-2 flex items-center">
+                    {formatRating(ownerReview.rating)}
+                    <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Added {formatDate(ownerReview.created_at)}
+                  </div>
+                </>
+              ) : (!viewingUserId || viewingUserId === user.id) ? (
+                <div className="text-gray-500">Click to add your rating</div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Map Section */}
@@ -465,93 +472,93 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </Card>
 
       {/* Notes Section */}
-        {(displayedNote || (!viewingUserId || viewingUserId === user.id)) && (
-          <Card className="mb-8">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">
-                {viewingUserId && viewingUserId !== user.id
-                  ? `${restaurant.owner_username}'s Notes`
-                  : "Notes"}
-              </CardTitle>
-              {(!viewingUserId || viewingUserId === user.id) && (
-                <div className="flex items-center gap-2">
-                  {displayedNote ? (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingNote(true)}
-                      >
-                        <FileEdit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setAlert({
-                            show: true,
-                            message: 'Are you sure you want to delete this note?',
-                            type: 'delete-note'
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </>
-                  ) : (
+      {(!viewingUserId || viewingUserId === user.id || displayedNote) && (
+        <Card className="mb-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-semibold">Notes</CardTitle>
+            {(!viewingUserId || viewingUserId === user.id) && (
+              <div className="flex items-center gap-2">
+                {displayedNote ? (
+                  <>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => {
-                        setNoteContent('');
+                        console.log('Edit note clicked');
+                        setNoteContent(displayedNote.note);
                         setEditingNote(true);
                       }}
                     >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Note
+                      <FileEdit className="h-4 w-4" />
                     </Button>
-                  )}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              {displayedNote ? (
-                editingNote ? (
-                  <div className="space-y-4">
-                    <Textarea
-                      value={noteContent}
-                      onChange={(e) => setNoteContent(e.target.value)}
-                      className="min-h-[100px]"
-                    />
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setEditingNote(false);
-                          setNoteContent(displayedNote.note);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button onClick={handleNoteSave}>Save</Button>
-                    </div>
-                  </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setAlert({
+                          show: true,
+                          message: 'Are you sure you want to delete this note?',
+                          type: 'delete-note'
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </>
                 ) : (
-                  <div>
-                    <p className="whitespace-pre-wrap">{displayedNote.note}</p>
-                    <p className="text-sm text-gray-500 mt-4">
-                      Last updated: {formatDate(displayedNote.created_at)}
-                    </p>
-                  </div>
-                )
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  No notes yet. Click 'Add Note' to create one.
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      console.log('Add note clicked');
+                      setNoteContent('');
+                      setEditingNote(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Note
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {editingNote ? (
+              <div className="space-y-4">
+                <Textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  className="min-h-[100px]"
+                  placeholder="Write your note here..."
+                />
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingNote(false);
+                      setNoteContent(displayedNote?.note || '');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleNoteSave}>Save</Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </div>
+            ) : displayedNote ? (
+              <div>
+                <p className="whitespace-pre-wrap">{displayedNote.note}</p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Last updated: {formatDate(displayedNote.created_at)}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-8">
+                No notes yet. Click 'Add Note' to create one.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Import Dialog */}
       <Dialog 

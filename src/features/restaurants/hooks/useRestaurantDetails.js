@@ -1,105 +1,113 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/supabaseClient';
 
-export const useRestaurantDetails = (restaurantId, viewingUserId = null) => {
+export const useRestaurantDetails = (id, viewingUserId) => {
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userBookmark, setUserBookmark] = useState(null);
 
   const fetchRestaurant = useCallback(async () => {
-    if (!restaurantId) {
-      setError('No restaurant ID provided');
+    if (!id) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
     try {
+      setLoading(true);
       // Get current user's session
       const { data: { session } } = await supabase.auth.getSession();
       const currentUserId = session?.user?.id;
 
-      // Fetch restaurant base data
+      // First fetch the main restaurant data
       const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
         .select(`
           *,
-          restaurant_types (*),
-          cities (*),
-          profiles!restaurants_created_by_fkey (username)
+          restaurant_types (
+            id,
+            name
+          ),
+          cities (
+            id,
+            name
+          ),
+          profiles!restaurants_created_by_fkey (
+            username
+          )
         `)
-        .eq('id', restaurantId)
+        .eq('id', id)
         .single();
 
       if (restaurantError) throw restaurantError;
 
-      // Fetch all reviews for this restaurant
-      const { data: allReviews, error: reviewsError } = await supabase
-        .from('restaurant_reviews')
-        .select('*')
-        .eq('restaurant_id', restaurantId);
-
-      if (reviewsError) throw reviewsError;
-
-      // Fetch all notes for this restaurant
-      const { data: allNotes, error: notesError } = await supabase
+      // Fetch notes separately
+      const { data: notes } = await supabase
         .from('notes')
         .select('*')
-        .eq('restaurant_id', restaurantId);
+        .eq('restaurant_id', id);
 
-      if (notesError) throw notesError;
+      // Fetch current user's bookmark
+      let bookmark = null;
+      if (currentUserId) {
+        const { data: bookmarkData } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('restaurant_id', id)
+          .eq('user_id', currentUserId);
+        
+        if (bookmarkData?.length > 0) {
+          bookmark = bookmarkData[0];
+        }
+      }
+      setUserBookmark(bookmark);
 
-      // Fetch bookmark status for current user
-      const { data: bookmarkData } = await supabase
-        .from('bookmarks')
+      // Fetch reviews
+      const { data: reviews } = await supabase
+        .from('restaurant_reviews')
         .select('*')
-        .eq('restaurant_id', restaurantId)
-        .eq('user_id', currentUserId)
-        .single();
+        .eq('restaurant_id', id);
 
-      setUserBookmark(bookmarkData);
+      // Get the owner's review (either viewing user's or the owner's review)
+      const targetUserId = viewingUserId || currentUserId;
+      const userReview = reviews?.find(review => review.user_id === targetUserId);
 
-      // Determine which user's data to show (viewing user or current user)
-      const contextUserId = viewingUserId || currentUserId;
-      
-      // Get the relevant user's review and note
-      const userReview = allReviews.find(review => review.user_id === contextUserId);
-      const userNote = allNotes.find(note => note.user_id === contextUserId);
-
-      // Calculate actual review count and aggregate rating
-      const uniqueReviewers = new Set(allReviews.map(review => review.user_id));
-      const actualReviewCount = uniqueReviewers.size;
-      
-      const actualAggregateRating = actualReviewCount > 0 
-        ? allReviews.reduce((sum, review) => sum + review.rating, 0) / actualReviewCount 
+      // Calculate aggregate rating
+      const uniqueReviewers = new Set(reviews?.map(review => review.user_id) || []);
+      const avgRating = reviews?.length 
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
         : 0;
 
-      setRestaurant({
+      const enrichedRestaurant = {
         ...restaurantData,
+        notes: notes || [],
         user_review: userReview || null,
-        user_notes: viewingUserId 
-          ? allNotes.filter(note => note.user_id === viewingUserId)
-          : allNotes.filter(note => note.user_id === currentUserId),
-        owner_username: restaurantData.profiles?.username,
-        review_count: actualReviewCount,
-        aggregate_rating: actualAggregateRating,
-        all_reviews: allReviews,
-        current_user_id: currentUserId,
-        viewing_user_id: viewingUserId
-      });
-      
+        review_count: uniqueReviewers.size,
+        aggregate_rating: avgRating,
+        has_user_review: !!reviews?.find(review => review.user_id === currentUserId)
+      };
+
+      setRestaurant(enrichedRestaurant);
+      setError(null);
+
     } catch (error) {
       console.error('Error fetching restaurant details:', error);
       setError(error.message);
+      setRestaurant(null);
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, viewingUserId]);
+  }, [id, viewingUserId]);
 
   useEffect(() => {
     fetchRestaurant();
   }, [fetchRestaurant]);
 
-  return { restaurant, loading, error, refetch: fetchRestaurant, userBookmark };
+  return { 
+    restaurant, 
+    loading, 
+    error, 
+    refetch: fetchRestaurant, 
+    userBookmark 
+  };
 };
