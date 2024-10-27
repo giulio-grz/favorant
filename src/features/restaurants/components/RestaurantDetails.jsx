@@ -187,21 +187,42 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         return;
       }
   
+      // Add/Update the review
       await addReview({
         user_id: user.id,
         restaurant_id: restaurant.id,
         rating: rating
       });
   
+      // If this was a "to try" restaurant, remove it from that list
+      if (restaurant.is_to_try) {
+        const { error: removeError } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('restaurant_id', restaurant.id)
+          .eq('type', 'to_try');
+  
+        if (removeError) throw removeError;
+      }
+  
       // Wait a bit for the trigger to complete
       await new Promise(resolve => setTimeout(resolve, 100));
       await refetch();
       setIsReviewDialogOpen(false);
       setRating(0);
-      setAlert({ show: true, message: 'Review added successfully', type: 'success' });
+      setAlert({ 
+        show: true, 
+        message: ownerReview ? 'Review updated successfully' : 'Review added successfully', 
+        type: 'success' 
+      });
     } catch (error) {
       console.error('Error submitting review:', error);
-      setAlert({ show: true, message: 'Failed to submit review', type: 'error' });
+      setAlert({ 
+        show: true, 
+        message: 'Failed to submit review', 
+        type: 'error' 
+      });
     }
   };
 
@@ -249,10 +270,18 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       if (deleteError) throw deleteError;
   
       await refetch();
-      setAlert({ show: true, message: 'Note deleted successfully', type: 'success' });
+      setAlert({ 
+        show: true, 
+        message: 'Note deleted successfully', 
+        type: 'success' 
+      });
     } catch (error) {
       console.error('Error deleting note:', error);
-      setAlert({ show: true, message: 'Failed to delete note', type: 'error' });
+      setAlert({ 
+        show: true, 
+        message: 'Failed to delete note', 
+        type: 'error' 
+      });
     }
   };
 
@@ -354,7 +383,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
       {/* Reviews Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Overall Rating */}
+        {/* Overall Rating Card */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Overall Rating</CardTitle>
@@ -376,27 +405,47 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           </CardContent>
         </Card>
 
-        {/* Owner's Rating */}
-        {ownerReview && (
-          <Card>
-            <CardHeader>
+        {/* Owner's Rating/Add Review Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
               <CardTitle className="text-lg font-semibold">
-                {viewingUserId && viewingUserId !== user.id
-                  ? `${restaurant.owner_username}'s Rating`
-                  : "My Rating"}
+                {ownerReview ? "My Rating" : "Add Review"}
               </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold mb-2 flex items-center">
-                {formatRating(ownerReview.rating)}
-                <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
+              {(!viewingUserId || viewingUserId === user.id) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRating(ownerReview?.rating || 5);
+                    setIsReviewDialogOpen(true);
+                  }}
+                >
+                  {ownerReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {ownerReview ? (
+              <>
+                <div className="text-3xl font-bold mb-2 flex items-center">
+                  {formatRating(ownerReview.rating)}
+                  <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
+                </div>
+                <div className="text-sm text-gray-500">
+                  Added {formatDate(ownerReview.created_at)}
+                </div>
+              </>
+            ) : (
+              <div className="text-gray-500">
+                {viewingUserId && viewingUserId !== user.id
+                  ? "No rating yet"
+                  : "Click to add your rating"}
               </div>
-              <div className="text-sm text-gray-500">
-                Added {formatDate(ownerReview.created_at)}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Map Section */}
