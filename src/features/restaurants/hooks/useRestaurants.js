@@ -9,12 +9,26 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
   const [hasResults, setHasResults] = useState(true);
   const mountedRef = useRef(true);
   const abortControllerRef = useRef(null);
+  const fetchInProgressRef = useRef(false);
 
   const fetchRestaurants = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
+    // If there's already a fetch in progress, skip this one
+    if (fetchInProgressRef.current) {
       return;
     }
+
+    // If no userId, exit early
+    if (!userId) {
+      setLoading(false);
+      setRestaurants([]);
+      setError(null);
+      setTotalCount(0);
+      setHasResults(false);
+      return;
+    }
+
+    // Set fetch in progress flag
+    fetchInProgressRef.current = true;
 
     // Cancel any in-flight request
     if (abortControllerRef.current) {
@@ -24,13 +38,16 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
     // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
 
-    setLoading(true);
-    setError(null);
-
     try {
+      setLoading(true);
+      setError(null);
+
       const data = await getUserRestaurants(isViewingOwnRestaurants ? userId : userId);
       
-      if (!mountedRef.current) return;
+      // Check if component is still mounted
+      if (!mountedRef.current) {
+        return;
+      }
 
       let filteredData = data;
       
@@ -81,20 +98,30 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
           filteredData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
 
+      // Only update state if component is still mounted
       if (mountedRef.current) {
         setRestaurants(filteredData);
         setTotalCount(filteredData.length);
         setHasResults(filteredData.length > 0);
-        setLoading(false);
+        setError(null);
       }
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError') {
+        return;
+      }
       
       console.error('Error fetching restaurants:', error);
       if (mountedRef.current) {
         setError(error.message);
+        setRestaurants([]);
+        setTotalCount(0);
+        setHasResults(false);
+      }
+    } finally {
+      if (mountedRef.current) {
         setLoading(false);
       }
+      fetchInProgressRef.current = false;
     }
   }, [userId, filters, sortOption, searchQuery, isViewingOwnRestaurants]);
 
@@ -107,6 +134,7 @@ export const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOpt
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      fetchInProgressRef.current = false;
     };
   }, [fetchRestaurants]);
 

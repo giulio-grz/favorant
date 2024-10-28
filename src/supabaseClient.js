@@ -13,26 +13,48 @@ const INITIAL_RETRY_DELAY = 1000; // 1 second
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const executeWithRetry = async (operation, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
-  try {
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 10000)
-    );
-    
-    const operationPromise = operation();
-    
-    return await Promise.race([timeoutPromise, operationPromise]);
-  } catch (error) {
-    if (retries > 0 && (
-      error.status === 429 || 
-      error.status === 503 || 
-      error.message === 'Request timeout'
-    )) {
-      console.log(`Retrying operation. Attempts remaining: ${retries}`);
-      await wait(delay);
-      return executeWithRetry(operation, retries - 1, delay * 2);
+  let lastError;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      // Execute the operation with timeout
+      const result = await Promise.race([
+        operation(),
+        timeoutPromise
+      ]);
+      
+      return result;
+    } catch (error) {
+      lastError = error;
+      
+      // Only retry on specific errors and if we have retries left
+      if (attempt < retries && (
+        error.status === 429 || // Rate limit
+        error.status === 503 || // Service unavailable
+        error.message === 'Request timeout' ||
+        error.code === '40001' || // Serialization failure
+        error.code === '23505' // Unique violation (may need retry)
+      )) {
+        console.log(`Retrying operation. Attempt ${attempt + 1} of ${retries}`);
+        // Add some jitter to the delay
+        const jitter = Math.random() * 200;
+        await new Promise(resolve => setTimeout(resolve, delay + jitter));
+        // Exponential backoff
+        delay *= 2;
+      } else {
+        // Don't retry on other errors
+        break;
+      }
     }
-    throw error;
   }
+  
+  // If we got here, we ran out of retries
+  throw lastError;
 };
 
 const checkRestaurantAssociations = async (userId, restaurantId) => {
@@ -373,44 +395,56 @@ export const addBookmark = async (userId, restaurantId, isToTry = false) => {
   try {
     console.log(`Attempting to add bookmark for restaurant ${restaurantId} by user ${userId}`);
 
+    if (!userId || !restaurantId) {
+      throw new Error('Missing required parameters');
+    }
+
     // First check if the restaurant exists
     const { data: restaurantExists, error: restaurantError } = await supabase
       .from('restaurants')
       .select('id')
       .eq('id', restaurantId)
-      .single();
+      .maybeSingle();
 
     if (restaurantError) {
+      throw new Error('Failed to verify restaurant');
+    }
+
+    if (!restaurantExists) {
       throw new Error('Restaurant not found');
     }
 
     // Check if a bookmark already exists
-    const { data: existingBookmark, error: bookmarkError } = await supabase
+    const { data: existingBookmarks, error: bookmarkError } = await supabase
       .from('bookmarks')
       .select('*')
       .eq('user_id', userId)
       .eq('restaurant_id', restaurantId)
-      .single();
+      .maybeSingle();
 
-    if (!bookmarkError && existingBookmark) {
-      return { status: 'exists', bookmark: existingBookmark };
+    if (bookmarkError) {
+      throw new Error('Failed to check existing bookmarks');
+    }
+
+    if (existingBookmarks) {
+      return { status: 'exists', bookmark: existingBookmarks };
     }
 
     // Check for existing review only if not adding as to_try
     if (!isToTry) {
-      const { data: existingReview } = await supabase
+      const { data: existingReview, error: reviewError } = await supabase
         .from('restaurant_reviews')
         .select('id')
         .eq('user_id', userId)
         .eq('restaurant_id', restaurantId)
-        .single();
+        .maybeSingle();
 
-      if (existingReview) {
+      if (!reviewError && existingReview) {
         return { status: 'reviewed' };
       }
     }
 
-    // Add new bookmark
+    // Add new bookmark with explicit headers
     const { data, error } = await supabase
       .from('bookmarks')
       .insert([{
@@ -769,7 +803,6 @@ export const removeRestaurantFromUserList = async (userId, restaurantId) => {
 
 export const getUserRestaurantData = async (userId, restaurantId) => {
   try {
-    // First get the restaurant with all its basic data
     const { data: restaurant, error: restaurantError } = await supabase
       .from('restaurants')
       .select(`
@@ -782,21 +815,21 @@ export const getUserRestaurantData = async (userId, restaurantId) => {
 
     if (restaurantError) throw restaurantError;
 
-    // Then get the user-specific data in separate queries
-    const [bookmarkResult, reviewResult, notesResult] = await Promise.all([
+    // Use Promise.allSettled to handle partial failures
+    const [bookmarkResult, reviewResult, notesResult] = await Promise.allSettled([
       supabase
         .from('bookmarks')
         .select('*')
         .eq('user_id', userId)
         .eq('restaurant_id', restaurantId)
-        .single(),
+        .maybeSingle(),
       
       supabase
         .from('restaurant_reviews')
         .select('*')
         .eq('user_id', userId)
         .eq('restaurant_id', restaurantId)
-        .single(),
+        .maybeSingle(),
       
       supabase
         .from('notes')
@@ -805,18 +838,11 @@ export const getUserRestaurantData = async (userId, restaurantId) => {
         .eq('restaurant_id', restaurantId)
     ]);
 
-    console.log('Restaurant data fetched:', {
-      restaurant,
-      bookmark: bookmarkResult.data,
-      review: reviewResult.data,
-      notes: notesResult.data
-    });
-
     return {
       ...restaurant,
-      user_bookmark: bookmarkResult.error ? null : bookmarkResult.data,
-      user_review: reviewResult.error ? null : reviewResult.data,
-      user_notes: notesResult.error ? [] : notesResult.data || []
+      user_bookmark: bookmarkResult.status === 'fulfilled' ? bookmarkResult.value.data : null,
+      user_review: reviewResult.status === 'fulfilled' ? reviewResult.value.data : null,
+      user_notes: notesResult.status === 'fulfilled' ? notesResult.value.data || [] : []
     };
   } catch (error) {
     console.error("Error fetching user restaurant data:", error);

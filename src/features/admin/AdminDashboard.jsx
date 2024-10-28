@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, getAllEntities, approveRestaurant, updateRestaurant, deleteRestaurant, approveCity, approveType, updateCity, deleteCity, updateType, deleteType, createCity, createRestaurantType } from '@/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Trash, MoreHorizontal, Check, Plus } from 'lucide-react';
+import { Edit, Trash, MoreHorizontal, Check, Plus, MapPin } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { executeWithRetry } from '@/supabaseClient';
-import { MapPin } from 'lucide-react';
 import { Label } from "@/components/ui/label";
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
   const [cities, setCities] = useState([]);
@@ -33,51 +35,156 @@ const AdminDashboard = () => {
   const [newCityName, setNewCityName] = useState('');
   const [isAddingType, setIsAddingType] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
-  const [isGeocodingDialogOpen, setIsGeocodingDialogOpen] = useState(false);
   const [geocodingDetails, setGeocodingDetails] = useState({
     address: '',
     cap: '',
     city: ''
   });
 
-  useEffect(() => {
-    checkAdminStatus();
-    fetchAllEntities();
-  }, []);
+  const [loadingStates, setLoadingStates] = useState({
+    adminCheck: true,
+    entities: false,
+    geocoding: false,
+    action: false
+  });
+
+  const [coordinatesUpdated, setCoordinatesUpdated] = useState(false);
+
+  const setLoadingState = (key, value) => {
+    setLoadingStates(prev => ({ ...prev, [key]: value }));
+  };
 
   const checkAdminStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setCurrentUser(user);
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
+    try {
+      setLoadingState('adminCheck', true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUser(user);
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
 
-      if (error) {
-        console.error("Error fetching admin status:", error);
-        setAlert({ show: true, message: "Failed to verify admin status.", type: "error" });
-      } else {
-        setIsAdmin(profile.is_admin);
+        if (error) {
+          console.error("Error fetching admin status:", error);
+          setAlert({ show: true, message: "Failed to verify admin status.", type: "error" });
+          return false;
+        } else {
+          setIsAdmin(profile.is_admin);
+          return profile.is_admin;
+        }
       }
+      return false;
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      return false;
+    } finally {
+      setLoadingState('adminCheck', false);
     }
   };
 
   const fetchAllEntities = async () => {
     try {
+      setLoadingState('entities', true);
       const { restaurants, cities, types } = await getAllEntities();
-      setRestaurants(restaurants);
-      setCities(cities);
-      setTypes(types);
+      setRestaurants(restaurants || []);
+      setCities(cities || []);
+      setTypes(types || []);
     } catch (error) {
       console.error('Error fetching entities:', error);
       setAlert({ show: true, message: "Failed to fetch data. Please try again.", type: "error" });
+    } finally {
+      setLoadingState('entities', false);
     }
   };
 
+  const handleRecalculateCoordinates = async () => {
+    try {
+      if (!editingRestaurant?.address || !editingRestaurant?.city_id) {
+        setAlert({
+          show: true,
+          message: 'Address and city are required for geocoding',
+          type: 'error'
+        });
+        return;
+      }
+  
+      const city = cities.find(c => c.id === editingRestaurant.city_id)?.name;
+      if (!city) {
+        setAlert({
+          show: true,
+          message: 'Please select a valid city',
+          type: 'error'
+        });
+        return;
+      }
+  
+      const searchQuery = [
+        editingRestaurant.address,
+        geocodingDetails.cap,
+        city
+      ].filter(Boolean).join(', ');
+  
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'RestaurantApp/1.0'
+          }
+        }
+      );
+  
+      if (!response.ok) {
+        throw new Error('Geocoding failed');
+      }
+  
+      const data = await response.json();
+  
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setEditingRestaurant(prev => ({
+          ...prev,
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lon)
+        }));
+  
+        setCoordinatesUpdated(true);
+        setTimeout(() => setCoordinatesUpdated(false), 3000); // Hide after 3 seconds
+      } else {
+        throw new Error('Location not found');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      setAlert({
+        show: true,
+        message: 'Failed to geocode address',
+        type: 'error'
+      });
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initialize = async () => {
+      const isAdminUser = await checkAdminStatus();
+      if (mounted && isAdminUser) {
+        await fetchAllEntities();
+      }
+    };
+
+    initialize();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const handleApprove = async (id, type) => {
     try {
+      setLoadingState('action', true);
       if (type === 'restaurant') {
         // Get restaurant details first
         const { data: restaurant } = await supabase
@@ -140,22 +247,29 @@ const AdminDashboard = () => {
         await approveType(id);
       }
       
-      fetchAllEntities();
+      await fetchAllEntities();
       setAlert({ show: true, message: `${type} approved successfully.`, type: "success" });
     } catch (error) {
       console.error(`Error approving ${type}:`, error);
       setAlert({ show: true, message: `Failed to approve ${type}. Please try again.`, type: "error" });
+    } finally {
+      setLoadingState('action', false);
     }
   };
 
   const handleEdit = (entity, type) => {
-    if (type === 'restaurant') setEditingRestaurant(entity);
-    else if (type === 'city') setEditingCity(entity);
-    else if (type === 'type') setEditingType(entity);
+    if (type === 'restaurant') {
+      setEditingRestaurant(entity);
+    } else if (type === 'city') {
+      setEditingCity(entity);
+    } else if (type === 'type') {
+      setEditingType(entity);
+    }
   };
 
   const handleSaveEdit = async (type) => {
     try {
+      setLoadingState('action', true);
       if (type === 'restaurant') {
         await updateRestaurant(editingRestaurant.id, editingRestaurant);
         setEditingRestaurant(null);
@@ -166,20 +280,19 @@ const AdminDashboard = () => {
         await updateType(editingType.id, editingType);
         setEditingType(null);
       }
-      fetchAllEntities();
+      await fetchAllEntities();
       setAlert({ show: true, message: `${type} updated successfully.`, type: "success" });
     } catch (error) {
       console.error(`Error updating ${type}:`, error);
       setAlert({ show: true, message: `Failed to update ${type}. Please try again.`, type: "error" });
+    } finally {
+      setLoadingState('action', false);
     }
   };
 
   const handleDelete = async (type) => {
     try {
-      if (!currentUser) {
-        throw new Error('User not authenticated');
-      }
-
+      setLoadingState('action', true);
       if (type === 'restaurant') {
         await deleteRestaurant(deletingRestaurant.id, currentUser.id);
         setDeletingRestaurant(null);
@@ -190,20 +303,23 @@ const AdminDashboard = () => {
         await deleteType(deletingType.id);
         setDeletingType(null);
       }
-      fetchAllEntities();
+      await fetchAllEntities();
       setAlert({ show: true, message: `${type} deleted successfully.`, type: "success" });
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
       setAlert({ show: true, message: `Failed to delete ${type}. Please try again.`, type: "error" });
+    } finally {
+      setLoadingState('action', false);
     }
   };
 
   const handleAddNewType = async () => {
     try {
+      setLoadingState('action', true);
       const newType = await createRestaurantType({ 
         name: newTypeName, 
         created_by: currentUser.id,
-        status: 'approved' // Set status as approved by default for admin
+        status: 'approved'
       });
       setTypes(prevTypes => [...prevTypes, newType]);
       setNewTypeName('');
@@ -213,15 +329,18 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error adding new type:', error);
       setAlert({ show: true, message: `Failed to add new type: ${error.message}`, type: 'error' });
+    } finally {
+      setLoadingState('action', false);
     }
   };
-  
+
   const handleAddNewCity = async () => {
     try {
+      setLoadingState('action', true);
       const newCity = await createCity({ 
         name: newCityName, 
         created_by: currentUser.id,
-        status: 'approved' // Set status as approved by default for admin
+        status: 'approved'
       });
       setCities(prevCities => [...prevCities, newCity]);
       setNewCityName('');
@@ -231,6 +350,8 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error adding new city:', error);
       setAlert({ show: true, message: `Failed to add new city: ${error.message}`, type: 'error' });
+    } finally {
+      setLoadingState('action', false);
     }
   };
 
@@ -241,10 +362,28 @@ const AdminDashboard = () => {
     );
   };
 
-  if (!isAdmin) {
-    return <div>You do not have admin privileges.</div>;
+  // Show loading spinner only during initial load
+  if (loadingStates.adminCheck) {
+    return <LoadingSpinner />;
   }
-  
+
+  // Show access denied if not admin
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <h1 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h1>
+        <p className="text-gray-600">You do not have admin privileges.</p>
+        <Button 
+          onClick={() => navigate('/')} 
+          className="mt-4"
+          variant="outline"
+        >
+          Return to Dashboard
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
@@ -288,6 +427,7 @@ const AdminDashboard = () => {
             </SelectContent>
           </Select>
         </div>
+
         <TabsContent value="restaurants">
           <h2 className="text-xl font-semibold mb-2">Restaurants</h2>
           <Table>
@@ -344,6 +484,7 @@ const AdminDashboard = () => {
             </TableBody>
           </Table>
         </TabsContent>
+
         <TabsContent value="cities">
           <h2 className="text-xl font-semibold mb-2">Cities</h2>
           <Table>
@@ -398,6 +539,7 @@ const AdminDashboard = () => {
             </TableBody>
           </Table>
         </TabsContent>
+
         <TabsContent value="types">
           <h2 className="text-xl font-semibold mb-2">Types</h2>
           <Table>
@@ -453,86 +595,114 @@ const AdminDashboard = () => {
           </Table>
         </TabsContent>
       </Tabs>
-  
-      {/* Dialog for editing restaurant */}
-      <Dialog open={editingRestaurant !== null} onOpenChange={() => setEditingRestaurant(null)}>
-        <DialogContent>
+
+      {/* Restaurant Edit Dialog */}
+      <Dialog 
+        open={editingRestaurant !== null} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingRestaurant(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-background">
           <DialogHeader>
             <DialogTitle>Edit Restaurant</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
+            {/* Restaurant Name */}
             <Input
               value={editingRestaurant?.name || ''}
               onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
               placeholder="Restaurant Name"
             />
+
+            {/* Address */}
             <Input
               value={editingRestaurant?.address || ''}
               onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
               placeholder="Address"
             />
-            <div className="space-y-2 pt-4 border-t">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium">Location Coordinates</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Current: {editingRestaurant?.latitude ? 
-                      `${editingRestaurant.latitude}, ${editingRestaurant.longitude}` : 
-                      'Not set'}
+
+            {/* Location Coordinates Section */}
+            <div>
+              <div className="mb-4">
+                <h3 className="text-sm font-medium">Location Coordinates</h3>
+                <p className="text-sm text-muted-foreground">
+                  Current: {editingRestaurant?.latitude ? 
+                    `${editingRestaurant.latitude}, ${editingRestaurant.longitude}` : 
+                    'Not set'}
+                </p>
+                {coordinatesUpdated && (
+                  <p className="mt-2 text-sm text-emerald-600 bg-emerald-50 p-2 rounded-md">
+                    Coordinates updated successfully!
                   </p>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                {/* CAP */}
+                <div>
+                  <Label>CAP (Optional)</Label>
+                  <Input
+                    value={geocodingDetails.cap || ''}
+                    onChange={(e) => setGeocodingDetails(prev => ({ 
+                      ...prev, 
+                      cap: e.target.value 
+                    }))}
+                    placeholder="CAP"
+                  />
                 </div>
+
+                {/* Latitude & Longitude */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Latitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={editingRestaurant?.latitude || ''}
+                      onChange={(e) => setEditingRestaurant({
+                        ...editingRestaurant,
+                        latitude: parseFloat(e.target.value)
+                      })}
+                      placeholder="Latitude"
+                    />
+                  </div>
+                  <div>
+                    <Label>Longitude</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={editingRestaurant?.longitude || ''}
+                      onChange={(e) => setEditingRestaurant({
+                        ...editingRestaurant,
+                        longitude: parseFloat(e.target.value)
+                      })}
+                      placeholder="Longitude"
+                    />
+                  </div>
+                </div>
+
+                {/* Recalculate Button */}
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Pre-fill the geocoding details with current values
-                    setGeocodingDetails({
-                      address: editingRestaurant?.address || '',
-                      cap: '',
-                      city: cities.find(c => c.id === editingRestaurant?.city_id)?.name || ''
-                    });
-                    setIsGeocodingDialogOpen(true);
-                  }}
+                  className="w-full"
+                  onClick={handleRecalculateCoordinates}
                 >
                   <MapPin className="mr-2 h-4 w-4" />
                   Recalculate Coordinates
                 </Button>
               </div>
-
-              {/* Manual coordinate editing */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Latitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={editingRestaurant?.latitude || ''}
-                    onChange={(e) => setEditingRestaurant({
-                      ...editingRestaurant,
-                      latitude: parseFloat(e.target.value)
-                    })}
-                    placeholder="Latitude"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Longitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={editingRestaurant?.longitude || ''}
-                    onChange={(e) => setEditingRestaurant({
-                      ...editingRestaurant,
-                      longitude: parseFloat(e.target.value)
-                    })}
-                    placeholder="Longitude"
-                  />
-                </div>
-              </div>
             </div>
-                  <div className="flex justify-between space-x-4">
-                    <div className="flex-1">
-                      <Select
-                        value={editingRestaurant?.city_id?.toString() || ''}
+
+            {/* City and Type Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* City Selection */}
+              <div>
+                <Select
+                  value={editingRestaurant?.city_id?.toString() || ''}
                   onValueChange={(value) => setEditingRestaurant({...editingRestaurant, city_id: parseInt(value)})}
                 >
                   <SelectTrigger>
@@ -546,14 +716,16 @@ const AdminDashboard = () => {
                 </Select>
                 <Button 
                   variant="ghost" 
-                  size="sm" 
-                  className="mt-2"
+                  size="sm"
+                  className="mt-2 w-full justify-start" 
                   onClick={() => setIsAddingCity(true)}
                 >
                   <Plus className="h-4 w-4 mr-2" /> Add New City
                 </Button>
               </div>
-              <div className="flex-1">
+
+              {/* Type Selection */}
+              <div>
                 <Select
                   value={editingRestaurant?.type_id?.toString() || ''}
                   onValueChange={(value) => setEditingRestaurant({...editingRestaurant, type_id: parseInt(value)})}
@@ -569,20 +741,22 @@ const AdminDashboard = () => {
                 </Select>
                 <Button 
                   variant="ghost" 
-                  size="sm" 
-                  className="mt-2"
+                  size="sm"
+                  className="mt-2 w-full justify-start" 
                   onClick={() => setIsAddingType(true)}
                 >
                   <Plus className="h-4 w-4 mr-2" /> Add New Type
                 </Button>
               </div>
             </div>
+
+            {/* Price Selection */}
             <Select
               value={editingRestaurant?.price?.toString() || ''}
               onValueChange={(value) => setEditingRestaurant({...editingRestaurant, price: parseInt(value)})}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select Price" />
+                <SelectValue placeholder="€" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">€</SelectItem>
@@ -591,149 +765,39 @@ const AdminDashboard = () => {
               </SelectContent>
             </Select>
           </div>
+
           <DialogFooter>
-            <Button onClick={() => handleSaveEdit('restaurant')}>Save Changes</Button>
+            <Button 
+              className="bg-black text-white hover:bg-black/90"
+              onClick={() => handleSaveEdit('restaurant')}
+            >
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Geocoding Dialog */}
-        <Dialog open={isGeocodingDialogOpen} onOpenChange={setIsGeocodingDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Geocode Address</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Street Address</Label>
-                <Input
-                  value={geocodingDetails.address}
-                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="e.g., Via Roma 123"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>CAP (Optional)</Label>
-                <Input
-                  value={geocodingDetails.cap}
-                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, cap: e.target.value }))}
-                  placeholder="e.g., 00100"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>City</Label>
-                <Input
-                  value={geocodingDetails.city}
-                  onChange={(e) => setGeocodingDetails(prev => ({ ...prev, city: e.target.value }))}
-                  placeholder="e.g., Roma"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsGeocodingDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={async () => {
-                try {
-                  if (!geocodingDetails.address || !geocodingDetails.city) {
-                    setAlert({
-                      show: true,
-                      message: 'Address and city are required for geocoding',
-                      type: 'error'
-                    });
-                    return;
-                  }
+      {/* Alert Dialog with higher z-index */}
+      <AlertDialog 
+        open={alert.show} 
+        onOpenChange={(open) => setAlert(prev => ({ ...prev, show: open }))}
+      >
+        <AlertDialogContent className="z-[200]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {alert.type === 'error' ? 'Error' : 'Success'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{alert.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAlert(prev => ({ ...prev, show: false }))}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-                  // Build search query with optional CAP
-                  const searchQuery = [
-                    geocodingDetails.address,
-                    geocodingDetails.cap,
-                    geocodingDetails.city,
-                    'Italy' // Adding country for better accuracy
-                  ].filter(Boolean).join(', ');
-
-                  const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
-                    {
-                      headers: {
-                        'Accept': 'application/json',
-                        'User-Agent': 'RestaurantApp/1.0'
-                      }
-                    }
-                  );
-
-                  if (!response.ok) {
-                    throw new Error('Geocoding failed');
-                  }
-
-                  const data = await response.json();
-
-                  if (data && data.length > 0) {
-                    const { lat, lon } = data[0];
-                    setEditingRestaurant(prev => ({
-                      ...prev,
-                      latitude: parseFloat(lat),
-                      longitude: parseFloat(lon)
-                    }));
-                    setAlert({
-                      show: true,
-                      message: 'Coordinates updated successfully',
-                      type: 'success'
-                    });
-                    setIsGeocodingDialogOpen(false);
-                  } else {
-                    throw new Error('Location not found');
-                  }
-                } catch (error) {
-                  console.error('Geocoding error:', error);
-                  setAlert({
-                    show: true,
-                    message: 'Failed to geocode address',
-                    type: 'error'
-                  });
-                }
-              }}>
-                Update Coordinates
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-      {/* Dialog for adding new type */}
-      <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Type</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Type name"
-            value={newTypeName}
-            onChange={(e) => setNewTypeName(e.target.value)}
-          />
-          <DialogFooter>
-            <Button onClick={handleAddNewType}>Add Type</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog for adding new city */}
-      <Dialog open={isAddingCity} onOpenChange={setIsAddingCity}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New City</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="City name"
-            value={newCityName}
-            onChange={(e) => setNewCityName(e.target.value)}
-          />
-          <DialogFooter>
-            <Button onClick={handleAddNewCity}>Add City</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-  
-      {/* Dialog for editing city */}
+      {/* City Edit Dialog */}
       <Dialog open={editingCity !== null} onOpenChange={() => setEditingCity(null)}>
         <DialogContent>
           <DialogHeader>
@@ -751,8 +815,8 @@ const AdminDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-  
-      {/* Dialog for editing type */}
+
+      {/* Type Edit Dialog */}
       <Dialog open={editingType !== null} onOpenChange={() => setEditingType(null)}>
         <DialogContent>
           <DialogHeader>
@@ -770,14 +834,48 @@ const AdminDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-  
-      {/* Alert dialog for deleting restaurant */}
+
+      {/* Add New Type Dialog */}
+      <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Type</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Type name"
+            value={newTypeName}
+            onChange={(e) => setNewTypeName(e.target.value)}
+          />
+          <DialogFooter>
+            <Button onClick={handleAddNewType}>Add Type</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New City Dialog */}
+      <Dialog open={isAddingCity} onOpenChange={setIsAddingCity}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New City</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="City name"
+            value={newCityName}
+            onChange={(e) => setNewCityName(e.target.value)}
+          />
+          <DialogFooter>
+            <Button onClick={handleAddNewCity}>Add City</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Restaurant Dialog */}
       <AlertDialog open={deletingRestaurant !== null} onOpenChange={() => setDeletingRestaurant(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this restaurant?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Restaurant</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the restaurant and all associated data.
+              Are you sure you want to delete {deletingRestaurant?.name}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -786,14 +884,14 @@ const AdminDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-  
-      {/* Alert dialog for deleting city */}
+
+      {/* Delete City Dialog */}
       <AlertDialog open={deletingCity !== null} onOpenChange={() => setDeletingCity(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this city?</AlertDialogTitle>
+            <AlertDialogTitle>Delete City</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the city and may affect associated restaurants.
+              Are you sure you want to delete {deletingCity?.name}? This may affect associated restaurants.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -802,14 +900,14 @@ const AdminDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-  
-      {/* Alert dialog for deleting type */}
+
+      {/* Delete Type Dialog */}
       <AlertDialog open={deletingType !== null} onOpenChange={() => setDeletingType(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this type?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Type</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the type and may affect associated restaurants.
+              Are you sure you want to delete {deletingType?.name}? This may affect associated restaurants.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
