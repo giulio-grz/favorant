@@ -1,28 +1,91 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leaflet';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon from '@/assets/marker-icon.png';
+import { debounce } from 'lodash';
 
 // Create custom icon
 const customIcon = new L.Icon({
   iconUrl: markerIcon,
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 31],     // Reduced from 33x41 to about 75%
-  iconAnchor: [12.5, 31], // Half the new width, full new height
-  popupAnchor: [1, -31],  // Adjusted for new height
-  shadowSize: [31, 31]    // Reduced shadow to match
+  iconSize: [25, 31],
+  iconAnchor: [12.5, 31],
+  popupAnchor: [1, -31],
+  shadowSize: [31, 31]
 });
+
+const geocodeAddress = async (address, city) => {
+  try {
+    const searchQuery = `${address}, ${city}`;
+    const encodedQuery = encodeURIComponent(searchQuery);
+    
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&limit=1`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'RestaurantApp/1.0'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Geocoding failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const { lat, lon } = data[0];
+      return { lat: parseFloat(lat), lon: parseFloat(lon) };
+    }
+    
+    throw new Error('Location not found');
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    throw error;
+  }
+};
 
 const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }) => {
   const [position, setPosition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [map, setMap] = useState(null);
-  const [hasAttemptedGeocoding, setHasAttemptedGeocoding] = useState(false);
+  const mountedRef = useRef(true);
+  const geocodingInProgressRef = useRef(false);
+
+  // Memoize the debounced geocoding function
+  const debouncedGeocode = useMemo(
+    () => debounce(async (searchAddress, searchCity) => {
+      if (geocodingInProgressRef.current) return;
+      
+      try {
+        geocodingInProgressRef.current = true;
+        const coords = await geocodeAddress(searchAddress, searchCity);
+        
+        if (mountedRef.current) {
+          setPosition([coords.lat, coords.lon]);
+          if (updateCoordinates) {
+            await updateCoordinates(coords.lat, coords.lon);
+          }
+        }
+      } catch (error) {
+        if (mountedRef.current) {
+          setError(error.message);
+        }
+      } finally {
+        geocodingInProgressRef.current = false;
+      }
+    }, 1000),
+    [updateCoordinates]
+  );
 
   useEffect(() => {
-    const geocodeAddress = async () => {
+    mountedRef.current = true;
+    
+    const initializeMap = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -34,61 +97,28 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
           return;
         }
 
-        // Skip if we've already attempted geocoding or don't have address/city
-        if (hasAttemptedGeocoding || !address || !city) {
-          setLoading(false);
-          return;
-        }
-
-        // Mark that we've attempted geocoding
-        setHasAttemptedGeocoding(true);
-
-        const searchQuery = `${address}, ${city}`;
-        const encodedQuery = encodeURIComponent(searchQuery);
-
-        // Add a delay to respect rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&limit=1`,
-          {
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'RestaurantApp/1.0'
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Geocoding failed: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
-        if (data && data.length > 0) {
-          const { lat, lon } = data[0];
-          const newLat = parseFloat(lat);
-          const newLon = parseFloat(lon);
-          
-          setPosition([newLat, newLon]);
-          
-          // Only update coordinates if they're not already set
-          if (updateCoordinates && (!latitude || !longitude)) {
-            await updateCoordinates(newLat, newLon);
-          }
-        } else {
-          throw new Error('Location not found');
+        // Only attempt geocoding if we have both address and city
+        if (address && city) {
+          await debouncedGeocode(address, city);
         }
       } catch (err) {
-        console.error('Geocoding error:', err);
-        setError(err.message || 'Failed to load map location');
+        if (mountedRef.current) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       }
     };
 
-    geocodeAddress();
-  }, [address, city, latitude, longitude, updateCoordinates, hasAttemptedGeocoding]);
+    initializeMap();
+
+    return () => {
+      mountedRef.current = false;
+      debouncedGeocode.cancel();
+    };
+  }, [address, city, latitude, longitude, debouncedGeocode]);
 
   useEffect(() => {
     if (map && position) {
@@ -150,4 +180,4 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
   );
 };
 
-export default RestaurantMap;
+export default React.memo(RestaurantMap);

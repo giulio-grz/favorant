@@ -92,54 +92,65 @@ function App() {
   };
 
   // Replace your existing auth useEffect with this
-  useEffect(() => {
-    // Initialize auth on mount
-    initializeAuth();
+  // Replace your existing auth useEffect with this
+useEffect(() => {
+  // Initialize auth on mount
+  initializeAuth();
 
-    // Set up auth state change subscription
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user);
+  // Set up auth state change subscription
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth state changed:', event, session?.user);
 
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        try {
-          if (!session?.user) {
-            console.error('No user in session');
-            return;
-          }
-
-          // Get profile data
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          setUser({ ...session.user, profile });
-          
-        } catch (error) {
-          console.error('Error handling auth state change:', error);
+    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+      try {
+        if (!session?.user) {
+          console.error('No user in session');
+          return;
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      } else if (event === 'TOKEN_REFRESHED') {
-        // Re-fetch user data on token refresh
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
+
+        // Get profile data
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!profileError) {
           setUser({ ...session.user, profile });
         }
+        
+      } catch (error) {
+        console.error('Error handling auth state change:', error);
       }
-    });
+    } else if (event === 'SIGNED_OUT') {
+      setUser(null);
+    }
+  });
 
-    // Cleanup subscription
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  // Set up session refresh interval
+  const refreshInterval = setInterval(async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (!error && session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        setUser({ ...session.user, profile });
+      }
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+    }
+  }, 600000); // 10 minutes
+
+  // Cleanup function
+  return () => {
+    subscription?.unsubscribe();
+    clearInterval(refreshInterval);
+  };
+}, []); // Empty dependency array since we want this to run once on mount
 
   // Add this to handle session refresh
   useEffect(() => {
