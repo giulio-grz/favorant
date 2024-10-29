@@ -1,44 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 
 export const useTypesAndCities = () => {
   const [types, setTypes] = useState([]);
   const [cities, setCities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchTypes = async () => {
+  const fetchTypes = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('restaurant_types').select('*');
+      const { data, error } = await supabase
+        .from('restaurant_types')
+        .select('*')
+        .order('name');
+      
       if (error) throw error;
-      setTypes(data);
+      setTypes(data || []);
     } catch (error) {
       console.error('Error fetching types:', error);
-      alert('Error fetching types: ' + error.message);
+      setError(error.message);
     }
-  };
+  }, []);
 
-  const fetchCities = async () => {
+  const fetchCities = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('cities').select('*');
+      const { data, error } = await supabase
+        .from('cities')
+        .select('*')
+        .order('name');
+      
       if (error) throw error;
-      setCities(data);
+      setCities(data || []);
     } catch (error) {
       console.error('Error fetching cities:', error);
-      alert('Error fetching cities: ' + error.message);
+      setError(error.message);
     }
-  };
+  }, []);
 
   const addType = async (newType) => {
     try {
       const { data, error } = await supabase
         .from('restaurant_types')
-        .insert({ name: newType })
-        .select();
+        .insert([{
+          name: newType.name.trim(),
+          created_by: newType.created_by,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
       if (error) throw error;
-      await fetchTypes();
-      return data[0];
+      
+      setTypes(prevTypes => [...prevTypes, data]);
+      return data;
     } catch (error) {
       console.error('Error adding type:', error);
-      alert('Failed to add type: ' + error.message);
+      throw error;
     }
   };
 
@@ -46,88 +63,46 @@ export const useTypesAndCities = () => {
     try {
       const { data, error } = await supabase
         .from('cities')
-        .insert({ name: newCity })
-        .select();
+        .insert([{
+          name: newCity.name.trim(),
+          created_by: newCity.created_by,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
       if (error) throw error;
-      await fetchCities();
-      return data[0];
+      
+      setCities(prevCities => [...prevCities, data]);
+      return data;
     } catch (error) {
       console.error('Error adding city:', error);
-      alert('Failed to add city: ' + error.message);
+      throw error;
     }
   };
 
-  const editType = async (id, newName) => {
+  const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const { error } = await supabase
-        .from('restaurant_types')
-        .update({ name: newName })
-        .eq('id', id);
-      if (error) throw error;
-      await fetchTypes();
-    } catch (error) {
-      console.error('Error editing type:', error);
-      alert('Failed to edit type: ' + error.message);
+      await Promise.all([fetchTypes(), fetchCities()]);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const editCity = async (id, newName) => {
-    try {
-      const { error } = await supabase
-        .from('cities')
-        .update({ name: newName })
-        .eq('id', id);
-      if (error) throw error;
-      await fetchCities();
-    } catch (error) {
-      console.error('Error editing city:', error);
-      alert('Failed to edit city: ' + error.message);
-    }
-  };
-
-  const deleteType = async (id) => {
-    try {
-      const { error } = await supabase
-        .from('restaurant_types')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      await fetchTypes();
-    } catch (error) {
-      console.error('Error deleting type:', error);
-      alert('Failed to delete type: ' + error.message);
-    }
-  };
-
-  const deleteCity = async (id) => {
-    try {
-      const { error } = await supabase
-        .from('cities')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      await fetchCities();
-    } catch (error) {
-      console.error('Error deleting city:', error);
-      alert('Failed to delete city: ' + error.message);
-    }
-  };
+  }, [fetchTypes, fetchCities]);
 
   useEffect(() => {
-    fetchTypes();
-    fetchCities();
-  }, []);
+    refresh();
+  }, [refresh]);
 
   return {
     types,
     cities,
+    setTypes, 
+    setCities,
     addType,
     addCity,
-    editType,
-    editCity,
-    deleteType,
-    deleteCity,
-    fetchTypes,
-    fetchCities
+    refresh,
+    loading,
+    error
   };
 };

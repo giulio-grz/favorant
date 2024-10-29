@@ -90,16 +90,6 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     }
   }, [fetchRestaurants, user?.id]);
 
-  useEffect(() => {
-    console.log("Fetch restaurants effect running");
-    if (user?.id) {
-      console.log("User ID available, triggering fetch");
-      fetchRestaurants();
-    } else {
-      console.log("No user ID available yet");
-    }
-  }, [fetchRestaurants, user?.id]);
-
   const deleteLocalRestaurant = useCallback((restaurantId) => {
     setRestaurants(prevRestaurants => 
       prevRestaurants.filter(restaurant => restaurant.id !== restaurantId)

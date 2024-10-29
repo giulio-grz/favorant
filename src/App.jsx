@@ -61,7 +61,14 @@ function App() {
   });
   const [sortOption, setSortOption] = useState('dateAdded');
 
-  const { types, cities } = useTypesAndCities();
+  const { 
+    types, 
+    cities, 
+    setTypes,
+    setCities,
+    loading: entitiesLoading, 
+    error: entitiesError 
+  } = useTypesAndCities();
 
   const initializeAuth = async () => {
     try {
@@ -91,7 +98,6 @@ function App() {
     }
   };
 
-  // Replace your existing auth useEffect with this
   // Replace your existing auth useEffect with this
 useEffect(() => {
   // Initialize auth on mount
@@ -312,9 +318,11 @@ useEffect(() => {
                       user={user}
                       types={types}
                       cities={cities}
+                      restaurants={restaurants}
                       addLocalRestaurant={addLocalRestaurant}
                       updateLocalRestaurant={updateLocalRestaurant}
-                      restaurants={restaurants}
+                      setTypes={setTypes}
+                      setCities={setCities}
                     />
                   ) : (
                     <Navigate to="/auth" replace />

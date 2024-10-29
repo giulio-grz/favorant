@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leaflet';
+import React, { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon from '@/assets/marker-icon.png';
-import { debounce } from 'lodash';
 
 // Create custom icon
 const customIcon = new L.Icon({
@@ -15,72 +14,27 @@ const customIcon = new L.Icon({
   shadowSize: [31, 31]
 });
 
-const geocodeAddress = async (address, city) => {
-  try {
-    const searchQuery = `${address}, ${city}`;
-    const encodedQuery = encodeURIComponent(searchQuery);
-    
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&limit=1`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'RestaurantApp/1.0'
-        }
-      }
-    );
+// RecenterAutomatically component to handle map view updates
+const RecenterAutomatically = ({ lat, lng }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lng]);
+  }, [lat, lng, map]);
+  return null;
+}
 
-    if (!response.ok) {
-      throw new Error(`Geocoding failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    if (data && data.length > 0) {
-      const { lat, lon } = data[0];
-      return { lat: parseFloat(lat), lon: parseFloat(lon) };
-    }
-    
-    throw new Error('Location not found');
-  } catch (error) {
-    console.error('Geocoding error:', error);
-    throw error;
-  }
-};
-
-const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }) => {
+const RestaurantMap = ({ 
+  address, 
+  city, 
+  latitude, 
+  longitude, 
+  updateCoordinates = null // Make it optional with default null
+}) => {
   const [position, setPosition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [map, setMap] = useState(null);
   const mountedRef = useRef(true);
-  const geocodingInProgressRef = useRef(false);
-
-  // Memoize the debounced geocoding function
-  const debouncedGeocode = useMemo(
-    () => debounce(async (searchAddress, searchCity) => {
-      if (geocodingInProgressRef.current) return;
-      
-      try {
-        geocodingInProgressRef.current = true;
-        const coords = await geocodeAddress(searchAddress, searchCity);
-        
-        if (mountedRef.current) {
-          setPosition([coords.lat, coords.lon]);
-          if (updateCoordinates) {
-            await updateCoordinates(coords.lat, coords.lon);
-          }
-        }
-      } catch (error) {
-        if (mountedRef.current) {
-          setError(error.message);
-        }
-      } finally {
-        geocodingInProgressRef.current = false;
-      }
-    }, 1000),
-    [updateCoordinates]
-  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -97,13 +51,39 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
           return;
         }
 
-        // Only attempt geocoding if we have both address and city
+        // Fallback to geocoding if coordinates aren't available
         if (address && city) {
-          await debouncedGeocode(address, city);
+          const searchQuery = `${address}, ${city}, Italy`;
+          
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
+            {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'RestaurantApp/1.0'
+              }
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error('Geocoding failed');
+          }
+
+          const data = await response.json();
+          
+          if (data && data.length > 0) {
+            const { lat, lon } = data[0];
+            if (mountedRef.current) {
+              setPosition([parseFloat(lat), parseFloat(lon)]);
+            }
+          } else {
+            throw new Error('Location not found');
+          }
         }
-      } catch (err) {
+      } catch (error) {
+        console.error('Map error:', error);
         if (mountedRef.current) {
-          setError(err.message);
+          setError(error.message);
         }
       } finally {
         if (mountedRef.current) {
@@ -116,15 +96,8 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
 
     return () => {
       mountedRef.current = false;
-      debouncedGeocode.cancel();
     };
-  }, [address, city, latitude, longitude, debouncedGeocode]);
-
-  useEffect(() => {
-    if (map && position) {
-      map.setView(position, 15);
-    }
-  }, [map, position]);
+  }, [address, city, latitude, longitude]);
 
   if (loading) {
     return (
@@ -150,18 +123,14 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
         center={position}
         zoom={15}
         scrollWheelZoom={false}
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: '100%', width: '100%', zIndex: 1 }}
         ref={setMap}
-        zoomControl={false}
+        zoomControl={true}
+        onClick={updateCoordinates ? (e) => {
+          const { lat, lng } = e.latlng;
+          updateCoordinates(lat, lng);
+        } : undefined}
       >
-        <ZoomControl 
-          position="bottomright"
-          className="border border-slate-200 shadow-lg rounded-lg overflow-hidden mr-4 mb-4"
-          zoomInText="+"
-          zoomOutText="−"
-          zoomInTitle="Zoom in"
-          zoomOutTitle="Zoom out"
-        />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -175,6 +144,7 @@ const RestaurantMap = ({ address, city, latitude, longitude, updateCoordinates }
             </div>
           </Popup>
         </Marker>
+        <RecenterAutomatically lat={position[0]} lng={position[1]} />
       </MapContainer>
     </div>
   );
