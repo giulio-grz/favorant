@@ -7,34 +7,27 @@ export const useRestaurantDetails = (id, viewingUserId) => {
   const [error, setError] = useState(null);
   const [userBookmark, setUserBookmark] = useState(null);
   const mountedRef = useRef(true);
-  const fetchInProgressRef = useRef(false);
 
   const fetchRestaurant = useCallback(async () => {
-    // Prevent concurrent fetches
-    if (fetchInProgressRef.current || !id) {
-      return;
-    }
-
-    fetchInProgressRef.current = true;
+    if (!id) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Get current user's session
       const { data: { session } } = await supabase.auth.getSession();
       const currentUserId = session?.user?.id;
 
-      // First fetch the main restaurant data
+      // First fetch the restaurant with its relations
       const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
         .select(`
           *,
-          restaurant_types (
+          cities (
             id,
             name
           ),
-          cities (
+          restaurant_types (
             id,
             name
           ),
@@ -47,8 +40,10 @@ export const useRestaurantDetails = (id, viewingUserId) => {
 
       if (restaurantError) throw restaurantError;
 
-      // Fetch all related data in parallel with proper error handling
-      const [notesResponse, bookmarkResponse, reviewsResponse] = await Promise.allSettled([
+      if (!mountedRef.current) return;
+
+      // Then fetch associated data in parallel
+      const [notesResponse, bookmarkResponse, reviewsResponse] = await Promise.all([
         supabase
           .from('notes')
           .select('*')
@@ -58,7 +53,8 @@ export const useRestaurantDetails = (id, viewingUserId) => {
           .from('bookmarks')
           .select('*')
           .eq('restaurant_id', id)
-          .eq('user_id', currentUserId) : Promise.resolve({ data: null }),
+          .eq('user_id', currentUserId) : 
+          Promise.resolve({ data: null }),
         
         supabase
           .from('restaurant_reviews')
@@ -68,17 +64,13 @@ export const useRestaurantDetails = (id, viewingUserId) => {
 
       if (!mountedRef.current) return;
 
-      // Safely handle responses
-      const notes = notesResponse.status === 'fulfilled' ? notesResponse.value.data || [] : [];
-      const bookmarks = bookmarkResponse.status === 'fulfilled' ? bookmarkResponse.value.data : null;
-      const reviews = reviewsResponse.status === 'fulfilled' ? reviewsResponse.value.data || [] : [];
+      const notes = notesResponse.error ? [] : (notesResponse.data || []);
+      const bookmarks = bookmarkResponse.error ? null : bookmarkResponse.data;
+      const reviews = reviewsResponse.error ? [] : (reviewsResponse.data || []);
 
-      // Get the owner's review (either viewing user's or the owner's review)
       const targetUserId = viewingUserId || currentUserId;
       const userReview = reviews.find(review => review.user_id === targetUserId);
 
-      // Calculate aggregate rating
-      const uniqueReviewers = new Set(reviews.map(review => review.user_id));
       const avgRating = reviews.length 
         ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
         : 0;
@@ -87,16 +79,14 @@ export const useRestaurantDetails = (id, viewingUserId) => {
         ...restaurantData,
         notes,
         user_review: userReview || null,
-        review_count: uniqueReviewers.size,
+        review_count: reviews.length,
         aggregate_rating: avgRating,
         has_user_review: !!reviews.find(review => review.user_id === currentUserId)
       };
 
-      if (mountedRef.current) {
-        setRestaurant(enrichedRestaurant);
-        setUserBookmark(Array.isArray(bookmarks) ? bookmarks[0] : bookmarks);
-        setError(null);
-      }
+      setRestaurant(enrichedRestaurant);
+      setUserBookmark(Array.isArray(bookmarks) ? bookmarks[0] : bookmarks);
+      setError(null);
     } catch (error) {
       console.error('Error fetching restaurant details:', error);
       if (mountedRef.current) {
@@ -108,17 +98,14 @@ export const useRestaurantDetails = (id, viewingUserId) => {
       if (mountedRef.current) {
         setLoading(false);
       }
-      fetchInProgressRef.current = false;
     }
   }, [id, viewingUserId]);
 
   useEffect(() => {
     mountedRef.current = true;
     fetchRestaurant();
-    
     return () => {
       mountedRef.current = false;
-      fetchInProgressRef.current = false;
     };
   }, [fetchRestaurant]);
 

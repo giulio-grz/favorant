@@ -119,54 +119,6 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
     }
   }, [restaurant, user.id, displayedNote]);
 
-  // Handle coordinates
-  const handleCoordinatesUpdate = async (lat, lon) => {
-    try {
-      if (!restaurant?.id || !lat || !lon) {
-        throw new Error('Missing required data for coordinate update');
-      }
-  
-      // Check if coordinates have actually changed
-      if (restaurant.latitude === lat && restaurant.longitude === lon) {
-        return; // Skip update if coordinates haven't changed
-      }
-  
-      // Update the database
-      const { error: updateError } = await supabase
-        .from('restaurants')
-        .update({
-          latitude: lat,
-          longitude: lon,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', restaurant.id);
-  
-      if (updateError) throw updateError;
-  
-      // Update local state
-      updateLocalRestaurant({
-        ...restaurant,
-        latitude: lat,
-        longitude: lon
-      });
-  
-      // Show success message only once
-      setAlert({ 
-        show: true, 
-        message: 'Location coordinates updated successfully', 
-        type: 'success' 
-      });
-  
-    } catch (error) {
-      console.error('Error updating coordinates:', error);
-      setAlert({ 
-        show: true, 
-        message: 'Failed to update location coordinates', 
-        type: 'error' 
-      });
-    }
-  };
-
   // Handle import
   const handleImport = async (type) => {
     try {
@@ -373,21 +325,28 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         </div>
       </div>
   
-      {/* Basic Info */}
-      <div className="space-y-6 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">{restaurant?.name}</h1>
-          <div className="flex items-center space-x-2 text-gray-500 text-sm">
-            <span>{restaurant?.restaurant_types?.name}</span>
+      {/* Restaurant Type & City */}
+      <div className="flex items-center space-x-2 text-gray-500 text-sm">
+        {restaurant?.restaurant_types?.name && (
+          <>
+            <span>{restaurant.restaurant_types.name}</span>
             <span>•</span>
-            <span>{restaurant?.cities?.name}</span>
+          </>
+        )}
+        {restaurant?.cities?.name && (
+          <>
+            <span>{restaurant.cities.name}</span>
             <span>•</span>
-            <span>{'€'.repeat(restaurant?.price || 0)}</span>
-          </div>
-          {restaurant?.address && (
-            <div className="text-gray-500 text-sm mt-1">{restaurant.address}</div>
-          )}
-        </div>
+          </>
+        )}
+        <span>{'€'.repeat(restaurant?.price || 0)}</span>
+      </div>
+
+      {/* Address */}
+      <div className="text-gray-500 text-sm mt-2 mb-8">
+        {restaurant?.address}
+        {restaurant?.postal_code && `, ${restaurant.postal_code}`}
+        {restaurant?.cities?.name && `, ${restaurant.cities.name}`}
       </div>
 
       {/* Reviews Section */}
@@ -456,20 +415,47 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </div>
 
       {/* Map Section */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Location</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RestaurantMap 
-            address={restaurant.address}
-            city={restaurant.cities?.name}
-            latitude={restaurant.latitude}
-            longitude={restaurant.longitude}
-            updateCoordinates={handleCoordinatesUpdate}
-          />
-        </CardContent>
-      </Card>
+      {restaurant?.latitude && restaurant?.longitude ? (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RestaurantMap 
+              address={restaurant.address}
+              city={restaurant.cities?.name}
+              latitude={restaurant.latitude}
+              longitude={restaurant.longitude}
+            />
+          </CardContent>
+        </Card>
+      ) : restaurant?.status === 'pending' ? (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
+              <div className="text-center text-muted-foreground">
+                <p>Location will be available after admin approval</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
+              <div className="text-center text-muted-foreground">
+                <p>Location not available</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notes Section */}
       {(!viewingUserId || viewingUserId === user.id || displayedNote) && (

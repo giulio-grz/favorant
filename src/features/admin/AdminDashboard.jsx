@@ -48,8 +48,6 @@ const AdminDashboard = () => {
     action: false
   });
 
-  const [coordinatesUpdated, setCoordinatesUpdated] = useState(false);
-
   const setLoadingState = (key, value) => {
     setLoadingStates(prev => ({ ...prev, [key]: value }));
   };
@@ -122,12 +120,13 @@ const AdminDashboard = () => {
   
       const searchQuery = [
         editingRestaurant.address,
-        geocodingDetails.cap,
-        city
+        editingRestaurant.postal_code,
+        city,
+        'Italy'
       ].filter(Boolean).join(', ');
   
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
         {
           headers: {
             'Accept': 'application/json',
@@ -150,8 +149,16 @@ const AdminDashboard = () => {
           longitude: parseFloat(lon)
         }));
   
-        setCoordinatesUpdated(true);
-        setTimeout(() => setCoordinatesUpdated(false), 3000); // Hide after 3 seconds
+        // Just add a success message text instead of an alert dialog
+        const messageElement = document.getElementById('coordinates-message');
+        if (messageElement) {
+          messageElement.textContent = 'Coordinates updated successfully';
+          messageElement.className = 'text-sm text-emerald-600 mt-2';
+          // Clear the message after 3 seconds
+          setTimeout(() => {
+            messageElement.textContent = '';
+          }, 3000);
+        }
       } else {
         throw new Error('Location not found');
       }
@@ -192,6 +199,7 @@ const AdminDashboard = () => {
           .select(`
             id,
             address,
+            postal_code,
             cities (
               name
             )
@@ -201,11 +209,16 @@ const AdminDashboard = () => {
   
         if (restaurant && restaurant.address && restaurant.cities?.name) {
           // Geocode the address
-          const searchQuery = `${restaurant.address}, ${restaurant.cities.name}`;
+          const searchQuery = [
+            restaurant.address,
+            restaurant.postal_code,
+            restaurant.cities.name,
+            'Italy'
+          ].filter(Boolean).join(', ');
           
           const response = await executeWithRetry(async () => {
             const res = await fetch(
-              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
               {
                 headers: {
                   'Accept': 'application/json',
@@ -271,8 +284,44 @@ const AdminDashboard = () => {
     try {
       setLoadingState('action', true);
       if (type === 'restaurant') {
-        await updateRestaurant(editingRestaurant.id, editingRestaurant);
+        // Log the current state for debugging
+        console.log('Saving restaurant with data:', editingRestaurant);
+        
+        const updateData = {
+          id: editingRestaurant.id,
+          name: editingRestaurant.name,
+          address: editingRestaurant.address,
+          postal_code: editingRestaurant.postal_code,
+          city_id: editingRestaurant.city_id,
+          type_id: editingRestaurant.type_id,
+          price: editingRestaurant.price,
+          latitude: editingRestaurant.latitude,
+          longitude: editingRestaurant.longitude
+        };
+  
+        // Call updateRestaurant with the correct data
+        const updatedRestaurant = await updateRestaurant(editingRestaurant.id, updateData);
+        console.log('Restaurant updated successfully:', updatedRestaurant);
+  
+        // Update local state immediately
+        setRestaurants(prevRestaurants => 
+          prevRestaurants.map(restaurant => 
+            restaurant.id === updatedRestaurant.id ? {
+              ...updatedRestaurant,
+              cities: cities.find(c => c.id === updatedRestaurant.city_id),
+              restaurant_types: types.find(t => t.id === updatedRestaurant.type_id)
+            } : restaurant
+          )
+        );
+  
+        // Close the dialog and show success message
         setEditingRestaurant(null);
+        setAlert({
+          show: true,
+          message: 'Restaurant updated successfully',
+          type: 'success'
+        });
+  
       } else if (type === 'city') {
         await updateCity(editingCity.id, editingCity);
         setEditingCity(null);
@@ -280,11 +329,17 @@ const AdminDashboard = () => {
         await updateType(editingType.id, editingType);
         setEditingType(null);
       }
+  
+      // Refresh data after any update
       await fetchAllEntities();
-      setAlert({ show: true, message: `${type} updated successfully.`, type: "success" });
+  
     } catch (error) {
       console.error(`Error updating ${type}:`, error);
-      setAlert({ show: true, message: `Failed to update ${type}. Please try again.`, type: "error" });
+      setAlert({
+        show: true,
+        message: `Failed to update ${type}: ${error.message}`,
+        type: 'error'
+      });
     } finally {
       setLoadingState('action', false);
     }
@@ -431,19 +486,23 @@ const AdminDashboard = () => {
         <TabsContent value="restaurants">
           <h2 className="text-xl font-semibold mb-2">Restaurants</h2>
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Address</TableHead>
+              <TableHead>Postal Code</TableHead>
+              <TableHead>City</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
             <TableBody>
               {filteredEntities(restaurants).map((restaurant) => (
                 <TableRow key={restaurant.id}>
-                  <TableCell>{restaurant.name}</TableCell>
-                  <TableCell>{restaurant.address}</TableCell>
+                <TableCell>{restaurant.name}</TableCell>
+                <TableCell>{restaurant.address}</TableCell>
+                <TableCell>{restaurant.postal_code}</TableCell>
+                <TableCell>{restaurant.cities?.name}</TableCell>
                   <TableCell>
                     <Badge 
                       className={
@@ -612,95 +671,42 @@ const AdminDashboard = () => {
 
           <div className="space-y-4">
             {/* Restaurant Name */}
-            <Input
-              value={editingRestaurant?.name || ''}
-              onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
-              placeholder="Restaurant Name"
-            />
-
-            {/* Address */}
-            <Input
-              value={editingRestaurant?.address || ''}
-              onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
-              placeholder="Address"
-            />
-
-            {/* Location Coordinates Section */}
-            <div>
-              <div className="mb-4">
-                <h3 className="text-sm font-medium">Location Coordinates</h3>
-                <p className="text-sm text-muted-foreground">
-                  Current: {editingRestaurant?.latitude ? 
-                    `${editingRestaurant.latitude}, ${editingRestaurant.longitude}` : 
-                    'Not set'}
-                </p>
-                {coordinatesUpdated && (
-                  <p className="mt-2 text-sm text-emerald-600 bg-emerald-50 p-2 rounded-md">
-                    Coordinates updated successfully!
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                {/* CAP */}
-                <div>
-                  <Label>CAP (Optional)</Label>
-                  <Input
-                    value={geocodingDetails.cap || ''}
-                    onChange={(e) => setGeocodingDetails(prev => ({ 
-                      ...prev, 
-                      cap: e.target.value 
-                    }))}
-                    placeholder="CAP"
-                  />
-                </div>
-
-                {/* Latitude & Longitude */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Latitude</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      value={editingRestaurant?.latitude || ''}
-                      onChange={(e) => setEditingRestaurant({
-                        ...editingRestaurant,
-                        latitude: parseFloat(e.target.value)
-                      })}
-                      placeholder="Latitude"
-                    />
-                  </div>
-                  <div>
-                    <Label>Longitude</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      value={editingRestaurant?.longitude || ''}
-                      onChange={(e) => setEditingRestaurant({
-                        ...editingRestaurant,
-                        longitude: parseFloat(e.target.value)
-                      })}
-                      placeholder="Longitude"
-                    />
-                  </div>
-                </div>
-
-                {/* Recalculate Button */}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleRecalculateCoordinates}
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  Recalculate Coordinates
-                </Button>
-              </div>
+            <div className="space-y-2">
+              <Label>Restaurant Name</Label>
+              <Input
+                value={editingRestaurant?.name || ''}
+                onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
+                placeholder="Restaurant Name"
+              />
             </div>
 
-            {/* City and Type Selection */}
+            {/* Address */}
+            <div className="space-y-2">
+              <Label>Street Address</Label>
+              <Input
+                value={editingRestaurant?.address || ''}
+                onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
+                placeholder="Address"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
+              {/* Postal Code */}
+              <div className="space-y-2">
+                <Label>Postal Code</Label>
+                <Input
+                  value={editingRestaurant?.postal_code || ''}
+                  onChange={(e) => setEditingRestaurant({
+                    ...editingRestaurant, 
+                    postal_code: e.target.value
+                  })}
+                  placeholder="Postal Code"
+                />
+              </div>
+
               {/* City Selection */}
-              <div>
+              <div className="space-y-2">
+                <Label>City</Label>
                 <Select
                   value={editingRestaurant?.city_id?.toString() || ''}
                   onValueChange={(value) => setEditingRestaurant({...editingRestaurant, city_id: parseInt(value)})}
@@ -714,56 +720,64 @@ const AdminDashboard = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="mt-2 w-full justify-start" 
-                  onClick={() => setIsAddingCity(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Add New City
-                </Button>
-              </div>
-
-              {/* Type Selection */}
-              <div>
-                <Select
-                  value={editingRestaurant?.type_id?.toString() || ''}
-                  onValueChange={(value) => setEditingRestaurant({...editingRestaurant, type_id: parseInt(value)})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {types.map(type => (
-                      <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="mt-2 w-full justify-start" 
-                  onClick={() => setIsAddingType(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Add New Type
-                </Button>
               </div>
             </div>
 
+            {/* Coordinates Section */}
+            <div className="space-y-2">
+              <Label>Location Coordinates</Label>
+              {editingRestaurant?.latitude && editingRestaurant?.longitude && (
+                <p className="text-sm text-muted-foreground">
+                  Current: {editingRestaurant.latitude}, {editingRestaurant.longitude}
+                </p>
+              )}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleRecalculateCoordinates}
+              >
+                <MapPin className="mr-2 h-4 w-4" />
+                Recalculate Coordinates
+              </Button>
+              {/* Add this div for the success message */}
+              <div id="coordinates-message"></div>
+            </div>
+
+            {/* Type Selection */}
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={editingRestaurant?.type_id?.toString() || ''}
+                onValueChange={(value) => setEditingRestaurant({...editingRestaurant, type_id: parseInt(value)})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {types.map(type => (
+                    <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Price Selection */}
-            <Select
-              value={editingRestaurant?.price?.toString() || ''}
-              onValueChange={(value) => setEditingRestaurant({...editingRestaurant, price: parseInt(value)})}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="€" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">€</SelectItem>
-                <SelectItem value="2">€€</SelectItem>
-                <SelectItem value="3">€€€</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label>Price</Label>
+              <Select
+                value={editingRestaurant?.price?.toString() || ''}
+                onValueChange={(value) => setEditingRestaurant({...editingRestaurant, price: parseInt(value)})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="€" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">€</SelectItem>
+                  <SelectItem value="2">€€</SelectItem>
+                  <SelectItem value="3">€€€</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter>

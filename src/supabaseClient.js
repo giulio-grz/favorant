@@ -351,39 +351,45 @@ export const addRestaurant = async (restaurantData, userId) => {
 
 export const createRestaurant = async (restaurantData, userId, isToTry = false) => {
   try {
-    console.log('Creating restaurant with data:', JSON.stringify(restaurantData, null, 2));
-    console.log('User ID:', userId);
-    console.log('Is To Try:', isToTry);
-
-    const dataToInsert = {
-      name: restaurantData.name,
-      type_id: restaurantData.type_id,
-      city_id: restaurantData.city_id,
-      price: restaurantData.price,
-      address: restaurantData.address,
-      created_by: userId
-    };
-
-    console.log('Data to insert:', JSON.stringify(dataToInsert, null, 2));
-
-    // First create the restaurant
     const { data: restaurant, error: restaurantError } = await supabase
       .from('restaurants')
-      .insert(dataToInsert)
-      .select()
+      .insert([{
+        name: restaurantData.name,
+        address: restaurantData.address,
+        postal_code: restaurantData.postal_code,
+        city_id: restaurantData.city_id,
+        type_id: restaurantData.type_id,
+        price: restaurantData.price,
+        created_by: userId,
+        status: 'pending'
+      }])
+      .select(`
+        *,
+        cities (
+          id,
+          name
+        ),
+        restaurant_types (
+          id,
+          name
+        )
+      `)
       .single();
 
-    if (restaurantError) {
-      console.error('Supabase error:', restaurantError);
-      throw restaurantError;
-    }
+    if (restaurantError) throw restaurantError;
 
-    // Then create the bookmark if it's a "to try" restaurant
     if (isToTry) {
-      await addRestaurantToUserList(userId, restaurant.id, true);
+      const { error: bookmarkError } = await supabase
+        .from('bookmarks')
+        .insert({
+          user_id: userId,
+          restaurant_id: restaurant.id,
+          type: 'to_try'
+        });
+
+      if (bookmarkError) throw bookmarkError;
     }
 
-    console.log('Restaurant created:', restaurant);
     return restaurant;
   } catch (error) {
     console.error('Error creating restaurant:', error);
@@ -563,17 +569,18 @@ export const createCity = async (cityData) => {
   try {
     const { data, error } = await supabase
       .from('cities')
-      .insert({
-        name: cityData.name,
+      .insert([{
+        name: cityData.name.trim(),
         created_by: cityData.created_by,
-        status: cityData.status || 'pending' // Use provided status or default to 'pending'
-      })
-      .select();
+        status: 'pending'
+      }])
+      .select()
+      .single();
 
     if (error) throw error;
-    return data[0];
+    return data;
   } catch (error) {
-    console.error("Error creating city:", error);
+    console.error('Error creating city:', error);
     throw error;
   }
 };
@@ -582,43 +589,56 @@ export const createRestaurantType = async (typeData) => {
   try {
     const { data, error } = await supabase
       .from('restaurant_types')
-      .insert({
-        name: typeData.name,
+      .insert([{
+        name: typeData.name.trim(),
         created_by: typeData.created_by,
-        status: typeData.status || 'pending' // Use provided status or default to 'pending'
-      })
-      .select();
+        status: 'pending'
+      }])
+      .select()
+      .single();
 
     if (error) throw error;
-    return data[0];
+    return data;
   } catch (error) {
-    console.error("Error creating restaurant type:", error);
+    console.error('Error creating restaurant type:', error);
     throw error;
   }
 };
 
 export const getAllEntities = async () => {
   try {
-    const { data: restaurants, error: restaurantError } = await supabase
-      .from('restaurants')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Run queries in parallel
+    const [restaurantsResult, citiesResult, typesResult] = await Promise.all([
+      supabase
+        .from('restaurants')
+        .select(`
+          *,
+          cities ( id, name ),
+          restaurant_types ( id, name )
+        `)
+        .order('created_at', { ascending: false }),
 
-    const { data: cities, error: cityError } = await supabase
-      .from('cities')
-      .select('*')
-      .order('created_at', { ascending: false });
+      supabase
+        .from('cities')
+        .select('*')
+        .order('name'),
 
-    const { data: types, error: typeError } = await supabase
-      .from('restaurant_types')
-      .select('*')
-      .order('created_at', { ascending: false });
+      supabase
+        .from('restaurant_types')
+        .select('*')
+        .order('name')
+    ]);
 
-    if (restaurantError) throw restaurantError;
-    if (cityError) throw cityError;
-    if (typeError) throw typeError;
+    // Check for errors
+    if (restaurantsResult.error) throw restaurantsResult.error;
+    if (citiesResult.error) throw citiesResult.error;
+    if (typesResult.error) throw typesResult.error;
 
-    return { restaurants, cities, types };
+    return {
+      restaurants: restaurantsResult.data || [],
+      cities: citiesResult.data || [],
+      types: typesResult.data || []
+    };
   } catch (error) {
     console.error("Error fetching entities:", error);
     throw error;
@@ -627,6 +647,71 @@ export const getAllEntities = async () => {
 
 export const approveRestaurant = async (id) => {
   try {
+    // Get restaurant details first
+    const { data: restaurant } = await supabase
+      .from('restaurants')
+      .select(`
+        id,
+        address,
+        postal_code,
+        cities (
+          name
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (restaurant && restaurant.address && restaurant.cities?.name) {
+      // Geocode the address
+      const searchQuery = [
+        restaurant.address,
+        restaurant.postal_code,
+        restaurant.cities.name,
+        'Italy'
+      ].filter(Boolean).join(', ');
+      
+      try {
+        const response = await executeWithRetry(async () => {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=it`,
+            {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'RestaurantApp/1.0'
+              }
+            }
+          );
+          
+          if (!res.ok) {
+            throw new Error('Geocoding failed');
+          }
+          
+          return res.json();
+        });
+
+        if (response && response.length > 0) {
+          const { lat, lon } = response[0];
+          
+          // Update restaurant with coordinates and status
+          const { data, error } = await supabase
+            .from('restaurants')
+            .update({
+              latitude: parseFloat(lat),
+              longitude: parseFloat(lon),
+              status: 'approved'
+            })
+            .eq('id', id)
+            .select();
+
+          if (error) throw error;
+          return data[0];
+        }
+      } catch (error) {
+        console.error('Geocoding error:', error);
+      }
+    }
+    
+    // If geocoding fails or address is incomplete, just approve without coordinates
     const { data, error } = await supabase
       .from('restaurants')
       .update({ status: 'approved' })
@@ -675,14 +760,51 @@ export const approveType = async (id) => {
 
 export const updateRestaurant = async (id, updates) => {
   try {
+    console.log('Updating restaurant:', id, updates);
+    
+    // First validate the input
+    if (!id || !updates) {
+      throw new Error('Invalid update parameters');
+    }
+
+    // Create the update object with only the fields we want to update
+    const updateFields = {
+      name: updates.name,
+      address: updates.address,
+      postal_code: updates.postal_code,
+      city_id: updates.city_id,
+      type_id: updates.type_id,
+      price: updates.price,
+      latitude: updates.latitude,
+      longitude: updates.longitude,
+      updated_at: new Date().toISOString()
+    };
+
+    // Perform the update
     const { data, error } = await supabase
       .from('restaurants')
-      .update(updates)
+      .update(updateFields)
       .eq('id', id)
-      .select();
+      .select(`
+        *,
+        cities (
+          id,
+          name
+        ),
+        restaurant_types (
+          id,
+          name
+        )
+      `)
+      .single();
 
-    if (error) throw error;
-    return data[0];
+    if (error) {
+      console.error('Error in updateRestaurant:', error);
+      throw error;
+    }
+
+    console.log('Restaurant update successful:', data);
+    return data;
   } catch (error) {
     console.error("Error updating restaurant:", error);
     throw error;

@@ -19,6 +19,7 @@ import {
   addReview  // Add this import if not already there
 } from '@/supabaseClient';
 import { Textarea } from "@/components/ui/textarea";
+import { AddressSection } from "@/components/ui/address-section";
 
 const AddEditRestaurant = ({ 
   user, 
@@ -26,7 +27,9 @@ const AddEditRestaurant = ({
   cities, 
   restaurants, 
   addLocalRestaurant, 
-  updateLocalRestaurant 
+  updateLocalRestaurant,
+  setTypes,  // Add this
+  setCities   // Add this
 }) => {
   // PART 2: STATE MANAGEMENT
   const navigate = useNavigate();
@@ -40,14 +43,29 @@ const AddEditRestaurant = ({
   
   const [restaurant, setRestaurant] = useState({
     name: '',
-    address: '',
-    type_id: null,
-    city_id: null,
+    address: {
+      street: '',
+      postalCode: '',
+      cityId: null,
+    },
+    typeId: null,
     price: 1
   });
 
   const [rating, setRating] = useState(5);
   const [error, setError] = useState(null);
+
+  const [isToTry, setIsToTry] = useState(false);
+
+  const [loadingState, setLoadingState] = useState({
+    action: false
+  });
+  
+  const [alert, setAlert] = useState({
+    show: false,
+    message: '',
+    type: 'success'
+  });
   
   // New Type/City states
   const [isAddingCity, setIsAddingCity] = useState(false);
@@ -92,14 +110,20 @@ const AddEditRestaurant = ({
     setSelectedRestaurant(selected);
     setRestaurant({
       name: selected.name,
-      address: selected.address,
-      type_id: selected.type_id,
-      city_id: selected.city_id,
+      address: {
+        street: selected.address,
+        postalCode: selected.postal_code,
+        cityId: selected.city_id,
+        latitude: selected.latitude,
+        longitude: selected.longitude
+      },
+      typeId: selected.type_id,
       price: selected.price || 1
     });
-    setStep(3); // Skip to final step since restaurant exists
+    setStep(3);
   };
 
+  // Update the handleAddNewCity function:
   const handleAddNewCity = async () => {
     try {
       const newCity = await createCity({ 
@@ -107,14 +131,29 @@ const AddEditRestaurant = ({
         created_by: user.id,
         status: 'pending'
       });
-      setRestaurant(prev => ({ ...prev, city_id: newCity.id }));
+  
+      // Add to local state and parent state
+      const updatedCity = { ...newCity, name: newCityName.trim() };
+      setCities(prev => [...prev, updatedCity]);
+      
+      // Update restaurant state
+      setRestaurant(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          cityId: newCity.id
+        }
+      }));
+  
       setNewCityName('');
       setIsAddingCity(false);
     } catch (error) {
       setError('Failed to add new city');
+      console.error('Error adding new city:', error);
     }
   };
 
+  // Update the handleAddNewType function:
   const handleAddNewType = async () => {
     try {
       const newType = await createRestaurantType({ 
@@ -122,53 +161,139 @@ const AddEditRestaurant = ({
         created_by: user.id,
         status: 'pending'
       });
-      setRestaurant(prev => ({ ...prev, type_id: newType.id }));
+  
+      // Add to local state and parent state
+      const updatedType = { ...newType, name: newTypeName.trim() };
+      setTypes(prev => [...prev, updatedType]);
+      
+      // Update restaurant state
+      setRestaurant(prev => ({
+        ...prev,
+        typeId: newType.id
+      }));
+  
       setNewTypeName('');
       setIsAddingType(false);
     } catch (error) {
       setError('Failed to add new type');
+      console.error('Error adding new type:', error);
     }
   };
 
-  const handleToTry = async () => {
+  const handleRecalculateCoordinates = async () => {
     try {
-      // If it's a new restaurant, create it first
-      if (!selectedRestaurant) {
-        const newRestaurant = await createRestaurant(restaurant, user.id, true);
-        addLocalRestaurant(newRestaurant);
+      if (!restaurant.address.street || !restaurant.address.cityId) {
+        setError('Address and city are required for geocoding');
+        return;
       }
-      navigate('/');
+  
+      const selectedCity = cities.find(c => c.id === restaurant.address.cityId)?.name;
+      if (!selectedCity) {
+        setError('Please select a valid city');
+        return;
+      }
+  
+      const searchQuery = [
+        restaurant.address.street,
+        restaurant.address.postalCode,
+        selectedCity
+      ].filter(Boolean).join(', ');
+  
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'RestaurantApp/1.0'
+          }
+        }
+      );
+  
+      if (!response.ok) {
+        throw new Error('Geocoding failed');
+      }
+  
+      const data = await response.json();
+  
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setRestaurant(prev => ({
+          ...prev,
+          address: {
+            ...prev.address,
+            latitude: parseFloat(lat),
+            longitude: parseFloat(lon)
+          }
+        }));
+      } else {
+        throw new Error('Location not found');
+      }
     } catch (error) {
-      setError('Failed to add restaurant to try list');
+      console.error('Geocoding error:', error);
+      setError('Failed to geocode address');
     }
   };
 
   const handleSubmit = async () => {
     try {
-      if (!selectedRestaurant) {
-        const newRestaurant = await createRestaurant(restaurant, user.id);
-        if (showReviewForm) {
-          // Add review and notes
-          await addReview({
+      setError(null);
+      
+      // Properly structure the restaurant data
+      const restaurantData = {
+        name: restaurant.name,
+        address: restaurant.address.street,        // Changed from nested object
+        postal_code: restaurant.address.postalCode,  // Changed from nested
+        city_id: restaurant.address.cityId,        // Changed from nested
+        type_id: restaurant.typeId,
+        price: restaurant.price
+      };
+  
+      console.log('Submitting restaurant:', restaurantData);
+  
+      const newRestaurant = await createRestaurant(restaurantData, user.id, isToTry);
+      
+      if (showReviewForm && newRestaurant) {
+        await addReview({
+          user_id: user.id,
+          restaurant_id: newRestaurant.id,
+          rating: rating
+        });
+        
+        if (notes.trim()) {
+          await addNote({
             user_id: user.id,
             restaurant_id: newRestaurant.id,
-            rating: rating
+            note: notes.trim()
           });
-          
-          if (notes.trim()) {
-            await addNote({
-              user_id: user.id,
-              restaurant_id: newRestaurant.id,
-              note: notes.trim()
-            });
-          }
         }
-        addLocalRestaurant(newRestaurant);
       }
-      navigate('/');
+  
+      if (newRestaurant) {
+        // Add additional data before adding to local state
+        const enrichedRestaurant = {
+          ...newRestaurant,
+          cities: cities.find(c => c.id === restaurantData.city_id),
+          restaurant_types: types.find(t => t.id === restaurantData.type_id)
+        };
+        addLocalRestaurant(enrichedRestaurant);
+        navigate('/');
+      }
     } catch (error) {
-      setError('Failed to add restaurant');
+      console.error('Error submitting restaurant:', error);
+      setError(error.message || 'Failed to add restaurant');
     }
+  };
+
+  // Add this function to check if the form is valid
+  const isFormValid = () => {
+    return (
+      restaurant.name && 
+      restaurant.address.street && 
+      restaurant.address.postalCode && 
+      restaurant.address.cityId !== null && 
+      restaurant.typeId !== null && 
+      restaurant.price
+    );
   };
 
   // PART 4: RENDER JSX
@@ -187,7 +312,6 @@ const AddEditRestaurant = ({
             <Progress 
               value={progress} 
               className="h-1 bg-emerald-100" 
-              indicatorClassName="bg-emerald-600" 
             />
           </div>
         </div>
@@ -282,117 +406,142 @@ const AddEditRestaurant = ({
         {/* Step 2: Restaurant Details */}
         {step === 2 && (
           <div className="space-y-6">
-            <div className="space-y-4">
-              {/* Name Input */}
+          <div className="space-y-4">
+            {/* Restaurant Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name">Restaurant Name</Label>
+              <Input
+                id="name"
+                value={restaurant.name}
+                onChange={(e) => setRestaurant(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter restaurant name"
+                className="h-12"
+              />
+            </div>
+        
+            {/* Address and Postal Code in same row */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium">
-                  Restaurant Name
-                </Label>
+                <Label>Street Address</Label>
                 <Input
-                  id="name"
-                  value={restaurant.name}
-                  onChange={(e) => setRestaurant(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter restaurant name"
+                  value={restaurant.address.street}
+                  onChange={(e) => setRestaurant(prev => ({
+                    ...prev,
+                    address: {
+                      ...prev.address,
+                      street: e.target.value
+                    }
+                  }))}
+                  placeholder="Enter street address"
                   className="h-12"
                 />
               </div>
-
-              {/* Address Input */}
+        
               <div className="space-y-2">
-                <Label htmlFor="address" className="text-sm font-medium">
-                  Address
-                </Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="address"
-                    value={restaurant.address}
-                    onChange={(e) => setRestaurant(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Enter address"
-                    className="pl-10 h-12"
-                  />
-                </div>
-              </div>
-
-              {/* City Selection */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">City</Label>
-                <Select
-                  value={restaurant.city_id?.toString()}
-                  onValueChange={(value) => {
-                    if (value === 'new') {
-                      setIsAddingCity(true);
-                    } else {
-                      setRestaurant(prev => ({ ...prev, city_id: parseInt(value) }));
+                <Label>Postal Code</Label>
+                <Input
+                  value={restaurant.address.postalCode}
+                  onChange={(e) => setRestaurant(prev => ({
+                    ...prev,
+                    address: {
+                      ...prev.address,
+                      postalCode: e.target.value
                     }
-                  }}
-                >
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Select city" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cities.map((city) => (
-                      <SelectItem key={city.id} value={city.id.toString()}>
-                        {city.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="new" className="text-primary">
-                      <Plus className="inline-block w-4 h-4 mr-2" />
-                      Add new city
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  }))}
+                  placeholder="Enter postal code"
+                  className="h-12"
+                />
               </div>
-
-              {/* Type Selection */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Type</Label>
-                <Select
-                  value={restaurant.type_id?.toString()}
-                  onValueChange={(value) => {
-                    if (value === 'new') {
-                      setIsAddingType(true);
-                    } else {
-                      setRestaurant(prev => ({ ...prev, type_id: parseInt(value) }));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {types.map((type) => (
-                      <SelectItem key={type.id} value={type.id.toString()}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="new" className="text-primary">
-                      <Plus className="inline-block w-4 h-4 mr-2" />
-                      Add new type
+            </div>
+        
+            {/* City Selection */}
+            <div className="space-y-2">
+              <Label>City</Label>
+              <Select
+                value={restaurant.address.cityId?.toString()}
+                onValueChange={(value) => {
+                  if (value === 'new') {
+                    setIsAddingCity(true);
+                  } else {
+                    setRestaurant(prev => ({
+                      ...prev,
+                      address: {
+                        ...prev.address,
+                        cityId: parseInt(value)
+                      }
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map(city => (
+                    <SelectItem key={city.id} value={city.id.toString()}>
+                      {city.name}
                     </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Price Selection */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Price Range</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[1, 2, 3].map((value) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant={restaurant.price === value ? "default" : "outline"}
-                      className="h-12"
-                      onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
-                    >
-                      {'€'.repeat(value)}
-                    </Button>
                   ))}
-                </div>
+                  <SelectItem value="new" className="text-primary">
+                    <Plus className="inline-block w-4 w-4 mr-2" />
+                    Add new city
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+        
+            {/* Type Selection */}
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={restaurant.typeId?.toString()}
+                onValueChange={(value) => {
+                  if (value === 'new') {
+                    setIsAddingType(true);
+                  } else {
+                    setRestaurant(prev => ({
+                      ...prev,
+                      typeId: parseInt(value)
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {types.map(type => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="new" className="text-primary">
+                    <Plus className="inline-block w-4 w-4 mr-2" />
+                    Add new type
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+        
+            {/* Price Selection */}
+            <div className="space-y-2">
+              <Label>Price Range</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((value) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={restaurant.price === value ? "default" : "outline"}
+                    className="h-12"
+                    onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
+                  >
+                    {'€'.repeat(value)}
+                  </Button>
+                ))}
               </div>
             </div>
           </div>
+        </div>
         )}
 
         {/* Step 3: Add to List */}
@@ -400,10 +549,13 @@ const AddEditRestaurant = ({
           <div className="space-y-6">
             <h2 className="text-lg font-medium">Add to Your List</h2>
             <div className="space-y-4">
-            <Button
-                variant="outline"
+              <Button
+                variant={isToTry ? "default" : "outline"}
                 className="w-full justify-start h-auto p-4"
-                onClick={() => handleToTry()}
+                onClick={() => {
+                  setIsToTry(true);
+                  setShowReviewForm(false);
+                }}
               >
                 <div className="flex flex-col items-start text-left">
                   <span className="font-medium">Add to "To Try" List</span>
@@ -414,9 +566,12 @@ const AddEditRestaurant = ({
               </Button>
 
               <Button
-                variant="outline"
+                variant={showReviewForm ? "default" : "outline"}
                 className="w-full justify-start h-auto p-4"
-                onClick={() => setShowReviewForm(true)}
+                onClick={() => {
+                  setIsToTry(false);
+                  setShowReviewForm(true);
+                }}
               >
                 <div className="flex flex-col items-start text-left">
                   <span className="font-medium">Add Review</span>
@@ -439,14 +594,11 @@ const AddEditRestaurant = ({
             onClick={() => step > 1 ? setStep(prev => prev - 1) : navigate('/')}
           >
             {step > 1 ? 'Back' : 'Cancel'}
-            </Button>
+          </Button>
           
           <Button
             className="flex-1"
-            disabled={
-              (step === 1 && !searchQuery) ||
-              (step === 2 && (!restaurant.name || !restaurant.address || !restaurant.city_id || !restaurant.type_id))
-            }
+            disabled={!isFormValid()}
             onClick={() => {
               if (step < 3) {
                 setStep(prev => prev + 1);
