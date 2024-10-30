@@ -11,12 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { 
+  supabase,
   searchRestaurants, 
   createRestaurant, 
   createCity, 
   createRestaurantType,
-  addNote,  // Add this import
-  addReview  // Add this import if not already there
+  addNote, 
+  addReview,
+  addBookmark
 } from '@/supabaseClient';
 import { Textarea } from "@/components/ui/textarea";
 import { AddressSection } from "@/components/ui/address-section";
@@ -106,21 +108,43 @@ const AddEditRestaurant = ({
     return () => clearTimeout(timeoutId);
   }, [searchQuery, handleSearch]);
 
-  const handleSelectRestaurant = (selected) => {
-    setSelectedRestaurant(selected);
-    setRestaurant({
-      name: selected.name,
-      address: {
-        street: selected.address,
-        postalCode: selected.postal_code,
-        cityId: selected.city_id,
-        latitude: selected.latitude,
-        longitude: selected.longitude
-      },
-      typeId: selected.type_id,
-      price: selected.price || 1
-    });
-    setStep(3);
+  const handleSelectRestaurant = async (selected) => {
+    try {
+      // Check if the restaurant ID exists
+      if (!selected?.id) {
+        console.error('No restaurant ID found:', selected);
+        return;
+      }
+  
+      // First check if the user already has this restaurant
+      const { data: existingBookmark } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('restaurant_id', selected.id)
+        .maybeSingle();
+  
+      const { data: existingReview } = await supabase
+        .from('restaurant_reviews')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('restaurant_id', selected.id)
+        .maybeSingle();
+  
+      if (existingBookmark || existingReview) {
+        // If user already has this restaurant, redirect to its page
+        navigate(`/user/${user.id}/restaurant/${selected.id}`);
+        return;
+      }
+  
+      // Otherwise, proceed with adding to list
+      setSelectedRestaurant(selected);
+      setIsToTry(false);
+      setShowReviewForm(false);
+      setStep(3);
+    } catch (error) {
+      console.error('Error checking restaurant existence:', error);
+    }
   };
 
   // Update the handleAddNewCity function:
@@ -237,13 +261,36 @@ const AddEditRestaurant = ({
   const handleSubmit = async () => {
     try {
       setError(null);
+  
+      if (selectedRestaurant) {
+        // Adding existing restaurant to user's list
+        if (isToTry) {
+          await addBookmark(user.id, selectedRestaurant.id, true);
+        } else if (showReviewForm) {
+          await addReview({
+            user_id: user.id,
+            restaurant_id: selectedRestaurant.id,
+            rating: rating
+          });
+          
+          if (notes.trim()) {
+            await addNote({
+              user_id: user.id,
+              restaurant_id: selectedRestaurant.id,
+              note: notes.trim()
+            });
+          }
+        }
+        navigate('/');
+        return;
+      }
       
-      // Properly structure the restaurant data
+      // Creating new restaurant (only if no existing restaurant was selected)
       const restaurantData = {
         name: restaurant.name,
-        address: restaurant.address.street,        // Changed from nested object
-        postal_code: restaurant.address.postalCode,  // Changed from nested
-        city_id: restaurant.address.cityId,        // Changed from nested
+        address: restaurant.address.street,
+        postal_code: restaurant.address.postalCode,
+        city_id: restaurant.address.cityId,
         type_id: restaurant.typeId,
         price: restaurant.price
       };
@@ -269,7 +316,6 @@ const AddEditRestaurant = ({
       }
   
       if (newRestaurant) {
-        // Add additional data before adding to local state
         const enrichedRestaurant = {
           ...newRestaurant,
           cities: cities.find(c => c.id === restaurantData.city_id),
@@ -286,14 +332,19 @@ const AddEditRestaurant = ({
 
   // Add this function to check if the form is valid
   const isFormValid = () => {
-    return (
-      restaurant.name && 
-      restaurant.address.street && 
-      restaurant.address.postalCode && 
-      restaurant.address.cityId !== null && 
-      restaurant.typeId !== null && 
-      restaurant.price
-    );
+    if (step < 3) {
+      return (
+        restaurant.name && 
+        restaurant.address.street && 
+        restaurant.address.postalCode && 
+        restaurant.address.cityId !== null && 
+        restaurant.typeId !== null && 
+        restaurant.price
+      );
+    }
+    
+    // For step 3, we just need either isToTry selected or showReviewForm
+    return isToTry || showReviewForm;
   };
 
   // PART 4: RENDER JSX

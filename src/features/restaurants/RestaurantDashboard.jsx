@@ -47,22 +47,17 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   };
 
   const fetchRestaurants = useCallback(async () => {
-    console.log("Starting fetchRestaurants with user:", user);
     if (!user?.id) {
-      console.log("No user ID available, skipping fetch");
       setLoadingState('restaurants', false);
       return;
     }
     
     try {
       setLoadingState('restaurants', true);
-      console.log("Fetching restaurants for user ID:", viewingUserId || user.id);
       
       const targetUserId = viewingUserId || user.id;
       const fetchedRestaurants = await getUserRestaurants(targetUserId, targetUserId);
-      
-      console.log("Fetched restaurants:", fetchedRestaurants);
-      
+            
       if (mounted.current) {
         setRestaurants(fetchedRestaurants || []);
         setError(null);
@@ -81,12 +76,8 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   }, [user?.id, viewingUserId]);
 
   useEffect(() => {
-    console.log("Fetch restaurants effect running");
     if (user?.id) {
-      console.log("User ID available, triggering fetch");
       fetchRestaurants();
-    } else {
-      console.log("No user ID available yet");
     }
   }, [fetchRestaurants, user?.id]);
 
@@ -160,9 +151,7 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   const handleRemoveFromList = async (restaurantId) => {
     try {
       setLoadingState('restaurants', true);
-      console.log('Attempting to remove restaurant:', restaurantId);
       const result = await removeRestaurantFromUserList(user.id, restaurantId);
-      console.log('Remove restaurant result:', result);
       
       if (result) {
         setRestaurants(prevRestaurants => 
@@ -249,9 +238,16 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
                   </Badge>
                 </div>
               )}
-              {!restaurant.is_to_try && restaurant.aggregate_rating && (
+              {restaurant.is_to_try && (
+                <div className="absolute -bottom-2 -right-2">
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 text-[10px] px-1 py-0.5 leading-normal rounded-full">
+                    To Try
+                  </Badge>
+                </div>
+              )}
+              {!restaurant.is_to_try && restaurant.user_rating && (
                 <div className="absolute -bottom-2 -right-2 bg-white rounded-full px-2 py-0.5 text-sm border">
-                  {restaurant.aggregate_rating.toFixed(1)}
+                  {restaurant.user_rating.toFixed(1)}
                 </div>
               )}
             </div>

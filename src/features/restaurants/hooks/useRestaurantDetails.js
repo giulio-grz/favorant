@@ -58,7 +58,12 @@ export const useRestaurantDetails = (id, viewingUserId) => {
         
         supabase
           .from('restaurant_reviews')
-          .select('*')
+          .select(`
+            *,
+            profiles:user_id (
+              username
+            )
+          `)
           .eq('restaurant_id', id)
       ]);
 
@@ -71,22 +76,48 @@ export const useRestaurantDetails = (id, viewingUserId) => {
       const targetUserId = viewingUserId || currentUserId;
       const userReview = reviews.find(review => review.user_id === targetUserId);
 
+      // Calculate aggregate rating
       const avgRating = reviews.length 
         ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
         : 0;
 
+      // Get notes specific to the viewing context
+      const relevantNotes = notes.filter(note => {
+        if (viewingUserId && viewingUserId !== currentUserId) {
+          return note.user_id === viewingUserId;
+        }
+        return note.user_id === currentUserId;
+      });
+
       const enrichedRestaurant = {
         ...restaurantData,
-        notes,
+        notes: relevantNotes,
         user_review: userReview || null,
         review_count: reviews.length,
-        aggregate_rating: avgRating,
-        has_user_review: !!reviews.find(review => review.user_id === currentUserId)
+        aggregate_rating: Number(avgRating.toFixed(2)),
+        has_user_review: !!userReview,
+        owner_username: restaurantData.profiles?.username,
+        reviews: reviews.map(review => ({
+          ...review,
+          username: review.profiles?.username
+        })),
+        is_to_try: bookmarks?.some(b => b.type === 'to_try') || false
       };
+
+      // Update the DB with calculated values
+      const { data: updateData, error: updateError } = await supabase
+        .from('restaurants')
+        .update({ 
+          review_count: reviews.length,
+          aggregate_rating: Number(avgRating.toFixed(2)),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
 
       setRestaurant(enrichedRestaurant);
       setUserBookmark(Array.isArray(bookmarks) ? bookmarks[0] : bookmarks);
       setError(null);
+
     } catch (error) {
       console.error('Error fetching restaurant details:', error);
       if (mountedRef.current) {

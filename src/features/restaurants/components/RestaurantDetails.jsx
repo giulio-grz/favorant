@@ -45,16 +45,24 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   const { id, userId: viewingUserId } = useParams();
   const navigate = useNavigate();
   const { restaurant, loading, error, refetch, userBookmark } = useRestaurantDetails(id, viewingUserId);
-  
-  console.log('Debug info:', {
-    viewingUserId,
-    currentUserId: user.id,
-    isViewingSelf: !viewingUserId || viewingUserId === user.id,
-    userBookmark,
-    restaurant: restaurant?.id,
-    hasReview: restaurant?.user_review ? true : false,
-    hasNote: restaurant?.user_notes?.length > 0
-  });
+
+  const displayedReview = useMemo(() => {
+    if (!restaurant?.reviews) return null;
+    return viewingUserId ? 
+      restaurant.reviews.find(review => review.user_id === viewingUserId) :
+      restaurant.reviews.find(review => review.user_id === user.id);
+  }, [restaurant?.reviews, viewingUserId, user.id]);
+
+  const userHasRestaurant = useMemo(() => {
+    if (!restaurant) return false;
+    
+    // Check if the current user (not the viewed user) has this restaurant
+    const hasReview = restaurant.reviews?.some(review => review.user_id === user.id) || false;
+    // Only true if userBookmark is actually present
+    const hasBookmark = userBookmark ? true : false;
+    
+    return hasReview || hasBookmark;
+  }, [restaurant, user.id, userBookmark]);
 
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
@@ -126,6 +134,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         await addBookmark(user.id, restaurant.id, true);
         setAlert({ show: true, message: 'Added to your "To Try" list', type: 'success' });
         setIsImportDialogOpen(false);
+        await refetch(); // Make sure this is here
       } else {
         setIsImportDialogOpen(false);
         setIsReviewDialogOpen(true);
@@ -144,27 +153,34 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         return;
       }
   
-      // Add/Update the review
+      // First remove the "to try" bookmark if it exists
+      if (restaurant.is_to_try) {
+        try {
+          const { error: removeError } = await supabase
+            .from('bookmarks')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('restaurant_id', restaurant.id)
+            .eq('type', 'to_try');
+  
+          if (removeError) {
+            console.error('Error removing to try status:', removeError);
+            // Continue with the review even if bookmark removal fails
+          }
+        } catch (err) {
+          console.error('Error during bookmark removal:', err);
+          // Continue with the review even if bookmark removal fails
+        }
+      }
+  
+      // Then add/update the review
       await addReview({
         user_id: user.id,
         restaurant_id: restaurant.id,
         rating: rating
       });
   
-      // If this was a "to try" restaurant, remove it from that list
-      if (restaurant.is_to_try) {
-        const { error: removeError } = await supabase
-          .from('bookmarks')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('restaurant_id', restaurant.id)
-          .eq('type', 'to_try');
-  
-        if (removeError) throw removeError;
-      }
-  
-      // Wait a bit for the trigger to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Force a refresh of the data
       await refetch();
       setIsReviewDialogOpen(false);
       setRating(0);
@@ -186,7 +202,6 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   // Handle note
   const handleNoteSave = async () => {
     try {
-      console.log('Saving note:', { noteContent, displayedNote });
       if (!noteContent.trim()) {
         setAlert({ show: true, message: 'Note cannot be empty', type: 'error' });
         return;
@@ -246,8 +261,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   const handleRemoveRestaurant = async () => {
     try {
       setLoadingState('removing', true);
-      console.log('Removing restaurant:', restaurant.id, 'for user:', user.id);
-      
+
       await removeRestaurantFromUserList(user.id, restaurant.id);
       
       setAlert({ 
@@ -284,11 +298,9 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
-  
         {viewingUserId && 
-         viewingUserId !== user.id && 
-         !userBookmark &&
-         !restaurant?.has_user_review && (
+        viewingUserId !== user.id && 
+        !userHasRestaurant && (
           <Button onClick={() => setIsImportDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add to My List
           </Button>
@@ -374,36 +386,42 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
         </Card>
 
         {/* Rating Card - Only show for own reviews or when viewing others' reviews */}
-        {((!viewingUserId || viewingUserId === user.id) || ownerReview) && (
+        {((!viewingUserId || viewingUserId === user.id) || displayedReview) && (
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg font-semibold">
-                  {ownerReview ? (viewingUserId === user.id ? "My Rating" : `${restaurant.owner_username}'s Rating`) : "Add Review"}
+                  {displayedReview ? (
+                    viewingUserId && viewingUserId !== user.id ? 
+                      `${displayedReview.username}'s Rating` : 
+                      "My Rating"
+                  ) : (
+                    "Add Review"
+                  )}
                 </CardTitle>
                 {(!viewingUserId || viewingUserId === user.id) && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setRating(ownerReview?.rating || 5);
+                      setRating(displayedReview?.rating || 5);
                       setIsReviewDialogOpen(true);
                     }}
                   >
-                    {ownerReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {displayedReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                   </Button>
                 )}
               </div>
             </CardHeader>
             <CardContent>
-              {ownerReview ? (
+              {displayedReview ? (
                 <>
                   <div className="text-3xl font-bold mb-2 flex items-center">
-                    {formatRating(ownerReview.rating)}
+                    {formatRating(displayedReview.rating)}
                     <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
                   </div>
                   <div className="text-sm text-gray-500">
-                    Added {formatDate(ownerReview.created_at)}
+                    Added {formatDate(displayedReview.created_at)}
                   </div>
                 </>
               ) : (!viewingUserId || viewingUserId === user.id) ? (
@@ -470,7 +488,6 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        console.log('Edit note clicked');
                         setNoteContent(displayedNote.note);
                         setEditingNote(true);
                       }}
@@ -496,7 +513,6 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      console.log('Add note clicked');
                       setNoteContent('');
                       setEditingNote(true);
                     }}
