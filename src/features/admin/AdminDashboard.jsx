@@ -492,6 +492,7 @@ const AdminDashboard = () => {
               <TableHead>Address</TableHead>
               <TableHead>Postal Code</TableHead>
               <TableHead>City</TableHead>
+              <TableHead>Website</TableHead>  {/* Add this line */}
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -503,6 +504,20 @@ const AdminDashboard = () => {
                 <TableCell>{restaurant.address}</TableCell>
                 <TableCell>{restaurant.postal_code}</TableCell>
                 <TableCell>{restaurant.cities?.name}</TableCell>
+                <TableCell>
+                  {restaurant.website ? (
+                    <a 
+                      href={restaurant.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {restaurant.website}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
                   <TableCell>
                     <Badge 
                       className={
@@ -759,6 +774,21 @@ const AdminDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Website */}
+            <div className="space-y-2">
+              <Label>Website</Label>
+              <Input
+                type="url"
+                value={editingRestaurant?.website || ''}
+                onChange={(e) => setEditingRestaurant({
+                  ...editingRestaurant,
+                  website: e.target.value
+                })}
+                placeholder="https://example.com"
+                className="mt-2"
+              />
             </div>
 
             {/* Price Selection */}

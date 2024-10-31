@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
-import { PlusCircle, Filter, Settings, Shield } from 'lucide-react';
+import { PlusCircle, Filter, Settings, Shield, User } from 'lucide-react';
 import UserMenu from './UserMenu';
 import UserSearch from './UserSearch';
 import MobileMenu from '../features/restaurants/MobileMenu';
@@ -32,6 +32,10 @@ const Header = ({ user, setUser }) => {
               Search Users
             </Button>
           </UserSearch>
+          <Button onClick={() => navigate(`/user/${user.id}`)} size="sm" variant="outline">
+            <User className="mr-2 h-4 w-4" />
+            Profile
+          </Button>
           <Button onClick={() => navigate('/add')} size="sm" variant="outline">
             <PlusCircle className="mr-2 h-4 w-4" />
             Add New
@@ -39,10 +43,6 @@ const Header = ({ user, setUser }) => {
           <Button onClick={() => navigate('/filter')} size="sm" variant="outline">
             <Filter className="mr-2 h-4 w-4" />
             Filters
-          </Button>
-          <Button onClick={() => navigate('/settings')} size="sm" variant="outline">
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
           </Button>
           {user.profile.is_admin && (
             <Button onClick={() => navigate('/admin')} size="sm" variant="outline">

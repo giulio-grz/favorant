@@ -399,6 +399,7 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
         city_id: restaurantData.city_id,
         type_id: restaurantData.type_id,
         price: restaurantData.price,
+        website: restaurantData.website, // Add this line
         created_by: userId,
         status: 'pending'
       }])
@@ -834,6 +835,7 @@ export const updateRestaurant = async (id, updates) => {
       city_id: updates.city_id,
       type_id: updates.type_id,
       price: updates.price,
+      website: updates.website, // Add this line
       latitude: updates.latitude,
       longitude: updates.longitude,
       updated_at: new Date().toISOString()
@@ -1124,6 +1126,170 @@ export const addNote = async ({ user_id, restaurant_id, note }) => {
     return data;
   } catch (error) {
     console.error('Error adding note:', error);
+    throw error;
+  }
+};
+
+// Social features - Add these new functions at the end of the file, before the export default statement
+
+export const followUser = async (followerId, followingId) => {
+  try {
+    const { data, error } = await supabase
+      .from('followers')
+      .insert({
+        follower_id: followerId,
+        following_id: followingId
+      })
+      .select('*, profiles!followers_following_id_fkey(username)')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') { // Unique violation
+        throw new Error('You are already following this user');
+      }
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error following user:', error);
+    throw error;
+  }
+};
+
+export const unfollowUser = async (followerId, followingId) => {
+  try {
+    const { error } = await supabase
+      .from('followers')
+      .delete()
+      .match({
+        follower_id: followerId,
+        following_id: followingId
+      });
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    throw error;
+  }
+};
+
+export const getFollowers = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('followers')
+      .select(`
+        follower_id,
+        profiles!followers_follower_id_fkey(
+          id,
+          username,
+          email
+        )
+      `)
+      .eq('following_id', userId);
+
+    if (error) throw error;
+    return data.map(f => f.profiles);
+  } catch (error) {
+    console.error('Error getting followers:', error);
+    throw error;
+  }
+};
+
+export const getFollowing = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('followers')
+      .select(`
+        following_id,
+        profiles!followers_following_id_fkey(
+          id,
+          username,
+          email
+        )
+      `)
+      .eq('follower_id', userId);
+
+    if (error) throw error;
+    return data.map(f => f.profiles);
+  } catch (error) {
+    console.error('Error getting following:', error);
+    throw error;
+  }
+};
+
+export const isFollowing = async (followerId, followingId) => {
+  try {
+    const { data, error } = await supabase
+      .from('followers')
+      .select('id')
+      .match({
+        follower_id: followerId,
+        following_id: followingId
+      })
+      .maybeSingle();
+
+    if (error) throw error;
+    return !!data;
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    throw error;
+  }
+};
+
+export const getRestaurantSocialFeed = async (restaurantId, userId) => {
+  try {
+    // Get the list of users being followed by the viewed user (not current user)
+    const { data: followingData, error: followingError } = await supabase
+      .from('followers')
+      .select('following_id')
+      .eq('follower_id', userId); // This will use the viewed user's ID
+
+    if (followingError) throw followingError;
+
+    if (!followingData?.length) return { reviews: [], notes: [] };
+
+    const followingIds = followingData.map(f => f.following_id);
+
+    // Get reviews and notes in parallel
+    const [reviewsResponse, notesResponse] = await Promise.all([
+      supabase
+        .from('restaurant_reviews')
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            username
+          )
+        `)
+        .eq('restaurant_id', restaurantId)
+        .in('user_id', followingIds)
+        .order('created_at', { ascending: false }),
+
+      supabase
+        .from('notes')
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            username
+          )
+        `)
+        .eq('restaurant_id', restaurantId)
+        .in('user_id', followingIds)
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (reviewsResponse.error) throw reviewsResponse.error;
+    if (notesResponse.error) throw notesResponse.error;
+
+    return {
+      reviews: reviewsResponse.data || [],
+      notes: notesResponse.data || []
+    };
+  } catch (error) {
+    console.error('Error fetching social feed:', error);
     throw error;
   }
 };

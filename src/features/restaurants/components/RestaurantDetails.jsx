@@ -40,6 +40,8 @@ import {
   removeRestaurantFromUserList
 } from '@/supabaseClient';
 import RestaurantMap from './RestaurantMap';
+import SocialFeed from './SocialFeed';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant, addLocalRestaurant }) => {
   const { id, userId: viewingUserId } = useParams();
@@ -288,7 +290,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   if (!restaurant) return <div className="flex justify-center items-center h-screen">Restaurant not found</div>;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
+    <div className="max-w-full pb-20">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <Button
@@ -336,30 +338,48 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           {restaurant?.name?.substring(0, 2).toUpperCase()}
         </div>
       </div>
-  
-      {/* Restaurant Type & City */}
-      <div className="flex items-center space-x-2 text-gray-500 text-sm">
-        {restaurant?.restaurant_types?.name && (
-          <>
-            <span>{restaurant.restaurant_types.name}</span>
-            <span>•</span>
-          </>
-        )}
-        {restaurant?.cities?.name && (
-          <>
-            <span>{restaurant.cities.name}</span>
-            <span>•</span>
-          </>
-        )}
-        <span>{'€'.repeat(restaurant?.price || 0)}</span>
+
+      {/* Restaurant Name and Details */}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold mb-4">{restaurant.name}</h1>
+        <div className="flex items-center space-x-2 text-gray-500 text-sm">
+          {restaurant?.restaurant_types?.name && (
+            <>
+              <span>{restaurant.restaurant_types.name}</span>
+              <span>•</span>
+            </>
+          )}
+          {restaurant?.cities?.name && (
+            <>
+              <span>{restaurant.cities.name}</span>
+              <span>•</span>
+            </>
+          )}
+          <span>{'€'.repeat(restaurant?.price || 0)}</span>
+        </div>
       </div>
 
       {/* Address */}
-      <div className="text-gray-500 text-sm mt-2 mb-8">
+      <div className="text-gray-500 text-sm mb-8">
         {restaurant?.address}
         {restaurant?.postal_code && `, ${restaurant.postal_code}`}
         {restaurant?.cities?.name && `, ${restaurant.cities.name}`}
       </div>
+
+      {/* Website */}
+      {restaurant?.website && (
+        <div className="flex items-center space-x-2 text-sm mb-8">
+          <a 
+            href={restaurant.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline flex items-center"
+          >
+            <Globe className="h-4 w-4 mr-2" />
+            Visit Website
+          </a>
+        </div>
+      )}
 
       {/* Reviews Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -471,6 +491,21 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                 <p>Location not available</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Social Feed Section */}
+      {userHasRestaurant && (!viewingUserId || viewingUserId === user.id) && (  // Show only when viewing our own list
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Social Feed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SocialFeed 
+              restaurantId={restaurant.id} 
+              userId={user.id}
+            />
           </CardContent>
         </Card>
       )}

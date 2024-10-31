@@ -573,6 +573,21 @@ const AddEditRestaurant = ({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Website Field */}
+            <div className="space-y-2">
+              <Label>Website (optional)</Label>
+              <Input
+                type="url"
+                value={restaurant.website || ''}
+                onChange={(e) => setRestaurant(prev => ({
+                  ...prev,
+                  website: e.target.value
+                }))}
+                placeholder="https://example.com"
+                className="h-12"
+              />
+            </div>
         
             {/* Price Selection */}
             <div className="space-y-2">
