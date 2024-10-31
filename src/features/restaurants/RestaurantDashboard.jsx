@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import UserProfile from './components/UserProfile';
 
 const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOption }) => {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     user: viewingUserId ? true : false,
     search: false
   });
+  const [viewingUserProfile, setViewingUserProfile] = useState(null);
 
   const setLoadingState = (key, value) => {
     if (mounted.current) {
@@ -80,6 +82,33 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
       fetchRestaurants();
     }
   }, [fetchRestaurants, user?.id]);
+
+  useEffect(() => {
+    const loadViewingUser = async () => {
+      if (viewingUserId) {  // Remove the condition that was preventing loading own profile
+        try {
+          setLoadingState('user', true);
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', viewingUserId)
+            .single();
+  
+          if (error) throw error;
+          setViewingUserProfile(profile);
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          setError('Failed to load user profile');
+        } finally {
+          setLoadingState('user', false);
+        }
+      } else {
+        setViewingUserProfile(null);
+      }
+    };
+  
+    loadViewingUser();
+  }, [viewingUserId]);
 
   const deleteLocalRestaurant = useCallback((restaurantId) => {
     setRestaurants(prevRestaurants => 
@@ -197,14 +226,12 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
 
   return (
     <div className="space-y-6">
-      {viewingUserId && viewingUser && (
-        <div className="flex items-center space-x-4 mb-8">
-          <Avatar className="h-16 w-16">
-            <AvatarFallback className="bg-slate-100 text-slate-500 text-xl">
-              {viewingUser.username?.substring(0, 2).toUpperCase() || <User className="h-8 w-8" />}
-            </AvatarFallback>
-          </Avatar>
-          <h1 className="text-2xl font-bold">{viewingUser.username}</h1>
+      {viewingUserId && viewingUserProfile && (
+        <div className="mb-8">
+          <UserProfile 
+            viewedUser={viewingUserProfile} 
+            currentUser={user}
+          />
         </div>
       )}
 
