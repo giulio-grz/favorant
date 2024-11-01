@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, MoreHorizontal, Star, FileEdit, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Star, FileEdit, Plus, Trash2, Globe } from 'lucide-react';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
 import { 
   supabase,
@@ -76,6 +76,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   const [loadingStates, setLoadingStates] = useState({
     removing: false
   });
+  const [hasSocialContent, setHasSocialContent] = useState(false);
 
   const setLoadingState = (key, value) => {
     setLoadingStates(prev => ({ ...prev, [key]: value }));
@@ -360,7 +361,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </div>
 
       {/* Address */}
-      <div className="text-gray-500 text-sm mb-8">
+      <div className="text-gray-500 text-sm mb-4">
         {restaurant?.address}
         {restaurant?.postal_code && `, ${restaurant.postal_code}`}
         {restaurant?.cities?.name && `, ${restaurant.cities.name}`}
@@ -368,7 +369,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
       {/* Website */}
       {restaurant?.website && (
-        <div className="flex items-center space-x-2 text-sm mb-8">
+        <div className="flex items-center space-x-2 text-sm mb-10">
           <a 
             href={restaurant.website}
             target="_blank"
@@ -496,19 +497,22 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       )}
 
       {/* Social Feed Section */}
-      {userHasRestaurant && (!viewingUserId || viewingUserId === user.id) && (  // Show only when viewing our own list
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Social Feed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SocialFeed 
-              restaurantId={restaurant.id} 
-              userId={user.id}
-            />
-          </CardContent>
-        </Card>
-      )}
+      {userHasRestaurant && (!viewingUserId || viewingUserId === user.id) && 
+        <SocialFeed 
+          restaurantId={restaurant.id} 
+          userId={user.id}
+          wrapper={(content) => content && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Social Feed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {content}
+              </CardContent>
+            </Card>
+          )}
+        />
+      }
 
       {/* Notes Section */}
       {(!viewingUserId || viewingUserId === user.id || displayedNote) && (

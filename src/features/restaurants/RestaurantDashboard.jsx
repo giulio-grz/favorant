@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -13,16 +13,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import UserProfile from './components/UserProfile';
 
-const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOption }) => {
+const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOption, initialTab = 'all' }) => {
   const navigate = useNavigate();
   const { id: viewingUserId } = useParams();
   const mounted = React.useRef(true);
   const [viewingUser, setViewingUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isAddingRestaurant, setIsAddingRestaurant] = useState(false);
@@ -76,6 +75,11 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
       }
     }
   }, [user?.id, viewingUserId]);
+
+  // Add this useEffect to handle initialTab changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     if (user?.id) {
@@ -226,14 +230,6 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
 
   return (
     <div className="space-y-6">
-      {viewingUserId && viewingUserProfile && (
-        <div className="mb-8">
-          <UserProfile 
-            viewedUser={viewingUserProfile} 
-            currentUser={user}
-          />
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
