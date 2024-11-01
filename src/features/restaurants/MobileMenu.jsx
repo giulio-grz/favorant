@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '../../components/ui/sheet';
-import { Menu, PlusCircle, Filter, Settings, LogOut, Shield } from 'lucide-react';
+import { Menu, PlusCircle, Filter, LogOut, Shield, User } from 'lucide-react';
 import { searchUsers, signOut } from '../../supabaseClient';
 
 const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, user, setUser, canAdd }) => {
@@ -86,9 +86,16 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
                 </Button>
               </li>
               <li>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/settings'); setIsOpen(false); }}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start" 
+                  onClick={() => { 
+                    navigate(`/profile/${user.id}`); 
+                    setIsOpen(false); 
+                  }}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
                 </Button>
               </li>
               {user?.profile?.is_admin && (

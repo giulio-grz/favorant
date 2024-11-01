@@ -5,7 +5,8 @@ import {
   Route,
   Navigate,
   useParams,
-  useNavigate
+  useNavigate,
+  useLocation
 } from 'react-router-dom';
 import { getCurrentUser, supabase } from './supabaseClient';
 import { useTypesAndCities } from './features/restaurants/hooks/useTypesAndCities';
@@ -38,6 +39,7 @@ const createProfile = async (userId, email, username) => {
 };
 
 // Lazy load components
+// Lazy load components
 const Auth = lazy(() => import('./components/Auth'));
 const RestaurantDashboard = lazy(() => import('./features/restaurants/RestaurantDashboard'));
 const RestaurantDetails = lazy(() => import('./features/restaurants/components/RestaurantDetails'));
@@ -45,6 +47,22 @@ const AddEditRestaurant = lazy(() => import('./features/restaurants/components/A
 const UserSettings = lazy(() => import('./features/restaurants/UserSettings'));
 const RestaurantFilter = lazy(() => import('./features/restaurants/components/RestaurantFilter'));
 const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard'));
+const UserProfilePage = lazy(() => import('@/features/restaurants/UserProfilePage'));
+
+// Wrap the RestaurantDashboard route in a component that can use hooks
+const DashboardWrapper = ({ user, filters, setFilters, sortOption, setSortOption }) => {
+  const location = useLocation();
+  return (
+    <RestaurantDashboard 
+      user={user}
+      filters={filters}
+      setFilters={setFilters}
+      sortOption={sortOption}
+      setSortOption={setSortOption}
+      initialTab={location.state?.tab || 'all'}
+    />
+  );
+};
 
 function App() {
   const [user, setUser] = useState(null);
@@ -253,12 +271,25 @@ useEffect(() => {
                 path="/user/:id" 
                 element={
                   user ? (
-                    <RestaurantDashboard 
+                    <DashboardWrapper 
                       user={user}
                       filters={filters}
                       setFilters={setFilters}
                       sortOption={sortOption}
                       setSortOption={setSortOption}
+                    />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              {/* Add this new route */}
+              <Route 
+                path="/profile/:id" 
+                element={
+                  user ? (
+                    <UserProfilePage 
+                      currentUser={user}
                     />
                   ) : (
                     <Navigate to="/auth" replace />

@@ -11,7 +11,7 @@ const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
 
   const handleUserSelect = (selectedUser) => {
-    navigate(`/user/${selectedUser.id}`);
+    navigate(`/profile/${selectedUser.id}`);
   };
 
   return (
@@ -32,7 +32,7 @@ const Header = ({ user, setUser }) => {
               Search Users
             </Button>
           </UserSearch>
-          <Button onClick={() => navigate(`/user/${user.id}`)} size="sm" variant="outline">
+          <Button onClick={() => navigate(`/profile/${user.id}`)} size="sm" variant="outline">
             <User className="mr-2 h-4 w-4" />
             Profile
           </Button>

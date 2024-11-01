@@ -5,8 +5,8 @@ import { Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDistance } from 'date-fns';
 import { getRestaurantSocialFeed } from '@/supabaseClient';
 
-const SocialFeed = ({ restaurantId, userId }) => {
-  const [socialData, setSocialData] = useState({ reviews: [], notes: [] });
+const SocialFeed = ({ restaurantId, userId, wrapper }) => {
+  const [socialData, setSocialData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -28,37 +28,55 @@ const SocialFeed = ({ restaurantId, userId }) => {
     loadSocialFeed();
   }, [restaurantId, userId]);
 
-  if (loading || error) return null;
+  if (loading) {
+    return null;
+  }
 
-  // Group items by user and combine their reviews and notes
+  if (error) {
+    return null;
+  }
+
+  if (!socialData) {
+    return null;
+  }
+
+  const reviews = socialData.reviews || [];
+  const notes = socialData.notes || [];
+
+  if (reviews.length === 0 && notes.length === 0) {
+    return null;
+  }
+
+  const allItems = [
+    ...reviews.map(r => ({ ...r, type: 'review' })),
+    ...notes.map(n => ({ ...n, type: 'note' }))
+  ];
+
+  if (allItems.length === 0) {
+    return null;
+  }
+
+  // Group items by user
   const groupedItems = {};
-  [...socialData.reviews, ...socialData.notes].forEach(item => {
+  allItems.forEach(item => {
+    if (!item.profiles?.username) return; // Skip items without valid user data
+    
     const userId = item.user_id;
     if (!groupedItems[userId]) {
       groupedItems[userId] = {
         username: item.profiles.username,
-        review: null,
-        note: null,
-        latestTimestamp: new Date(item.created_at)
+        items: []
       };
     }
+    groupedItems[userId].items.push({
+      ...item,
+      timestamp: new Date(item.created_at)
+    });
+  });
 
-    const timestamp = new Date(item.created_at);
-    if (timestamp > groupedItems[userId].latestTimestamp) {
-      groupedItems[userId].latestTimestamp = timestamp;
-    }
-
-    if ('rating' in item) {
-      groupedItems[userId].review = {
-        ...item,
-        timestamp: new Date(item.created_at)
-      };
-    } else {
-      groupedItems[userId].note = {
-        ...item,
-        timestamp: new Date(item.created_at)
-      };
-    }
+  // Sort items within each group
+  Object.values(groupedItems).forEach(group => {
+    group.items.sort((a, b) => b.timestamp - a.timestamp);
   });
 
   // Convert to array and sort by most recent activity
@@ -66,17 +84,18 @@ const SocialFeed = ({ restaurantId, userId }) => {
     .map(([userId, data]) => ({
       userId,
       username: data.username,
-      review: data.review,
-      note: data.note,
-      latestTimestamp: data.latestTimestamp
+      items: data.items,
+      mostRecent: Math.max(...data.items.map(item => item.timestamp))
     }))
-    .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+    .sort((a, b) => b.mostRecent - a.mostRecent);
 
-  if (sortedGroups.length === 0) return null;
+  if (sortedGroups.length === 0) {
+    return null;
+  }
 
   const displayGroups = isExpanded ? sortedGroups : sortedGroups.slice(0, 2);
 
-  return (
+  const content = sortedGroups.length > 0 ? (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">From people you follow</p>
@@ -104,9 +123,9 @@ const SocialFeed = ({ restaurantId, userId }) => {
         {displayGroups.map((group) => (
           <div 
             key={group.userId} 
-            className="bg-muted/50 rounded-lg p-4 space-y-3"
+            className="bg-muted/50 rounded-lg p-4"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback>
                   {group.username.substring(0, 2).toUpperCase()}
@@ -115,31 +134,35 @@ const SocialFeed = ({ restaurantId, userId }) => {
               <span className="font-medium">{group.username}</span>
             </div>
             
-            <div className="space-y-2">
-              {group.review && (
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                  <span className="font-medium">{group.review.rating.toFixed(1)}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatDistance(group.review.timestamp, new Date(), { addSuffix: true })}
-                  </span>
+            <div className="space-y-3">
+              {group.items.map((item) => (
+                <div key={item.id} className="text-sm">
+                  {item.type === 'review' ? (
+                    <div className="flex items-center gap-2">
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                      <span className="font-medium">{item.rating.toFixed(1)}</span>
+                      <span className="text-muted-foreground">
+                        {formatDistance(item.timestamp, new Date(), { addSuffix: true })}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p>{item.note}</p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        {formatDistance(item.timestamp, new Date(), { addSuffix: true })}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {group.note && (
-                <div className="text-sm">
-                  <p>{group.note.note}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    {formatDistance(group.note.timestamp, new Date(), { addSuffix: true })}
-                  </p>
-                </div>
-              )}
+              ))}
             </div>
           </div>
         ))}
       </div>
     </div>
-  );
+  ) : null;
+
+  return wrapper ? wrapper(content) : content;
 };
 
 export default SocialFeed;

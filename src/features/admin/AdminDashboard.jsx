@@ -284,9 +284,6 @@ const AdminDashboard = () => {
     try {
       setLoadingState('action', true);
       if (type === 'restaurant') {
-        // Log the current state for debugging
-        console.log('Saving restaurant with data:', editingRestaurant);
-        
         const updateData = {
           id: editingRestaurant.id,
           name: editingRestaurant.name,
@@ -296,12 +293,11 @@ const AdminDashboard = () => {
           type_id: editingRestaurant.type_id,
           price: editingRestaurant.price,
           latitude: editingRestaurant.latitude,
-          longitude: editingRestaurant.longitude
-        };
-  
+          longitude: editingRestaurant.longitude,
+          website: editingRestaurant.website  // Make sure this is here
+        };    
         // Call updateRestaurant with the correct data
         const updatedRestaurant = await updateRestaurant(editingRestaurant.id, updateData);
-        console.log('Restaurant updated successfully:', updatedRestaurant);
   
         // Update local state immediately
         setRestaurants(prevRestaurants => 

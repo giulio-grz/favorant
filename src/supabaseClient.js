@@ -820,31 +820,22 @@ export const approveType = async (id) => {
   }
 };
 
-export const updateRestaurant = async (id, updates) => {
+export const updateRestaurant = async (id, updateData) => {
   try {    
-    // First validate the input
-    if (!id || !updates) {
-      throw new Error('Invalid update parameters');
-    }
-
-    // Create the update object with only the fields we want to update
-    const updateFields = {
-      name: updates.name,
-      address: updates.address,
-      postal_code: updates.postal_code,
-      city_id: updates.city_id,
-      type_id: updates.type_id,
-      price: updates.price,
-      website: updates.website, // Add this line
-      latitude: updates.latitude,
-      longitude: updates.longitude,
-      updated_at: new Date().toISOString()
-    };
-
-    // Perform the update
     const { data, error } = await supabase
       .from('restaurants')
-      .update(updateFields)
+      .update({
+        name: updateData.name,
+        address: updateData.address,
+        postal_code: updateData.postal_code,
+        city_id: updateData.city_id,
+        type_id: updateData.type_id,
+        price: updateData.price,
+        website: updateData.website,
+        latitude: updateData.latitude,
+        longitude: updateData.longitude,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id)
       .select(`
         *,
@@ -859,13 +850,10 @@ export const updateRestaurant = async (id, updates) => {
       `)
       .single();
 
-    if (error) {
-      console.error('Error in updateRestaurant:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data;
   } catch (error) {
-    console.error("Error updating restaurant:", error);
+    console.error('Error updating restaurant:', error);
     throw error;
   }
 };
@@ -1240,15 +1228,17 @@ export const isFollowing = async (followerId, followingId) => {
 
 export const getRestaurantSocialFeed = async (restaurantId, userId) => {
   try {
-    // Get the list of users being followed by the viewed user (not current user)
+    // Get the list of users being followed by the viewed user
     const { data: followingData, error: followingError } = await supabase
       .from('followers')
       .select('following_id')
-      .eq('follower_id', userId); // This will use the viewed user's ID
+      .eq('follower_id', userId);
 
     if (followingError) throw followingError;
-
-    if (!followingData?.length) return { reviews: [], notes: [] };
+    
+    if (!followingData?.length) {
+      return { reviews: [], notes: [] };
+    }
 
     const followingIds = followingData.map(f => f.following_id);
 
@@ -1291,6 +1281,52 @@ export const getRestaurantSocialFeed = async (restaurantId, userId) => {
   } catch (error) {
     console.error('Error fetching social feed:', error);
     throw error;
+  }
+};
+
+export const getUserStats = async (userId) => {
+  try {
+    const [visitedCount, toTryCount, followers, following] = await Promise.all([
+      // Get count of visited restaurants (with reviews)
+      supabase
+        .from('restaurant_reviews')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId),
+      
+      // Get count of to-try restaurants
+      supabase
+        .from('bookmarks')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId)
+        .eq('type', 'to_try'),
+      
+      // Get followers count
+      supabase
+        .from('followers')
+        .select('id', { count: 'exact' })
+        .eq('following_id', userId),
+      
+      // Get following count
+      supabase
+        .from('followers')
+        .select('id', { count: 'exact' })
+        .eq('follower_id', userId),
+    ]);
+
+    return {
+      visitedCount: visitedCount.count || 0,
+      toTryCount: toTryCount.count || 0,
+      followersCount: followers.count || 0,
+      followingCount: following.count || 0
+    };
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    return {
+      visitedCount: 0,
+      toTryCount: 0,
+      followersCount: 0,
+      followingCount: 0
+    };
   }
 };
 
