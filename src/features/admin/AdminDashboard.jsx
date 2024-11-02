@@ -8,12 +8,21 @@ import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Trash, MoreHorizontal, Check, Plus, MapPin } from 'lucide-react';
+import { 
+  Edit, 
+  Plus, 
+  MoreHorizontal, 
+  Check, 
+  Trash, 
+  MapPin, 
+  ArrowLeft 
+} from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { executeWithRetry } from '@/supabaseClient';
 import { Label } from "@/components/ui/label";
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -488,7 +497,7 @@ const AdminDashboard = () => {
               <TableHead>Address</TableHead>
               <TableHead>Postal Code</TableHead>
               <TableHead>City</TableHead>
-              <TableHead>Website</TableHead>  {/* Add this line */}
+              <TableHead>Website</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -666,156 +675,195 @@ const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Restaurant Edit Dialog */}
-      <Dialog 
-        open={editingRestaurant !== null} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingRestaurant(null);
-          }
-        }}
-      >
-        <DialogContent className="bg-background">
-          <DialogHeader>
-            <DialogTitle>Edit Restaurant</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Restaurant Name */}
-            <div className="space-y-2">
-              <Label>Restaurant Name</Label>
-              <Input
-                value={editingRestaurant?.name || ''}
-                onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
-                placeholder="Restaurant Name"
-              />
-            </div>
-
-            {/* Address */}
-            <div className="space-y-2">
-              <Label>Street Address</Label>
-              <Input
-                value={editingRestaurant?.address || ''}
-                onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
-                placeholder="Address"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Postal Code */}
-              <div className="space-y-2">
-                <Label>Postal Code</Label>
-                <Input
-                  value={editingRestaurant?.postal_code || ''}
-                  onChange={(e) => setEditingRestaurant({
-                    ...editingRestaurant, 
-                    postal_code: e.target.value
-                  })}
-                  placeholder="Postal Code"
-                />
-              </div>
-
-              {/* City Selection */}
-              <div className="space-y-2">
-                <Label>City</Label>
-                <Select
-                  value={editingRestaurant?.city_id?.toString() || ''}
-                  onValueChange={(value) => setEditingRestaurant({...editingRestaurant, city_id: parseInt(value)})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select City" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cities.map(city => (
-                      <SelectItem key={city.id} value={city.id.toString()}>{city.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Coordinates Section */}
-            <div className="space-y-2">
-              <Label>Location Coordinates</Label>
-              {editingRestaurant?.latitude && editingRestaurant?.longitude && (
-                <p className="text-sm text-muted-foreground">
-                  Current: {editingRestaurant.latitude}, {editingRestaurant.longitude}
-                </p>
-              )}
+      {/* Restaurant Edit */}
+      {editingRestaurant && (
+        <div className="fixed inset-0 bg-background z-50 overflow-hidden">
+          <div className="h-full flex flex-col">
+            {/* Header - reduced padding on mobile */}
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b bg-background">
               <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleRecalculateCoordinates}
+                variant="ghost"
+                onClick={() => setEditingRestaurant(null)}
+                className="p-0 hover:bg-transparent"
               >
-                <MapPin className="mr-2 h-4 w-4" />
-                Recalculate Coordinates
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              {/* Add this div for the success message */}
-              <div id="coordinates-message"></div>
+              <h2 className="text-lg font-semibold">Edit Restaurant</h2>
+              <div className="w-[52px]"></div> {/* Spacer to center title */}
             </div>
 
-            {/* Type Selection */}
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select
-                value={editingRestaurant?.type_id?.toString() || ''}
-                onValueChange={(value) => setEditingRestaurant({...editingRestaurant, type_id: parseInt(value)})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {types.map(type => (
-                    <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Scrollable Content - adjusted padding for mobile */}
+            <div className="flex-1 overflow-y-auto px-4 py-2 sm:py-4">
+              <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+                {/* Restaurant Name */}
+                <div className="space-y-2">
+                  <Label>Restaurant Name</Label>
+                  <Input
+                    value={editingRestaurant?.name || ''}
+                    onChange={(e) => setEditingRestaurant({...editingRestaurant, name: e.target.value})}
+                    placeholder="Restaurant Name"
+                    className="h-10 sm:h-12"
+                  />
+                </div>
+
+                {/* Street Address & Postal Code - stacked on mobile */}
+                <div className="space-y-4 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4">
+                  <div className="space-y-2">
+                    <Label>Street Address</Label>
+                    <Input
+                      value={editingRestaurant?.address || ''}
+                      onChange={(e) => setEditingRestaurant({...editingRestaurant, address: e.target.value})}
+                      placeholder="Address"
+                      className="h-10 sm:h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Postal Code</Label>
+                    <Input
+                      value={editingRestaurant?.postal_code || ''}
+                      onChange={(e) => setEditingRestaurant({
+                        ...editingRestaurant, 
+                        postal_code: e.target.value
+                      })}
+                      placeholder="Postal Code"
+                      className="h-10 sm:h-12"
+                    />
+                  </div>
+                </div>
+
+                {/* City Selection */}
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <Select
+                    value={editingRestaurant?.city_id?.toString()}
+                    onValueChange={(value) => {
+                      if (value === 'new') {
+                        setIsAddingCity(true);
+                      } else {
+                        setEditingRestaurant({...editingRestaurant, city_id: parseInt(value)});
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10 sm:h-12">
+                      <SelectValue placeholder="Select City" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cities.map(city => (
+                        <SelectItem key={city.id} value={city.id.toString()}>
+                          {city.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new" className="text-primary">
+                        <div className="flex items-center">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add new city
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Type Selection */}
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select
+                    value={editingRestaurant?.type_id?.toString()}
+                    onValueChange={(value) => {
+                      if (value === 'new') {
+                        setIsAddingType(true);
+                      } else {
+                        setEditingRestaurant({...editingRestaurant, type_id: parseInt(value)});
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10 sm:h-12">
+                      <SelectValue placeholder="Select Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {types.map(type => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new" className="text-primary">
+                        <div className="flex items-center">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add new type
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Website */}
+                <div className="space-y-2">
+                  <Label>Website</Label>
+                  <Input
+                    type="url"
+                    value={editingRestaurant?.website || ''}
+                    onChange={(e) => setEditingRestaurant({
+                      ...editingRestaurant,
+                      website: e.target.value
+                    })}
+                    placeholder="https://example.com"
+                    className="h-10 sm:h-12"
+                  />
+                </div>
+
+                {/* Location Coordinates */}
+                <div className="space-y-2">
+                  <Label>Location Coordinates</Label>
+                  {editingRestaurant?.latitude && editingRestaurant?.longitude && (
+                    <p className="text-sm text-muted-foreground">
+                      Current: {editingRestaurant.latitude}, {editingRestaurant.longitude}
+                    </p>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="w-full h-10 sm:h-12"
+                    onClick={handleRecalculateCoordinates}
+                  >
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Recalculate Coordinates
+                  </Button>
+                  <div id="coordinates-message"></div>
+                </div>
+
+                {/* Price */}
+                <div className="space-y-2">
+                  <Label>Price</Label>
+                  <Select
+                    value={editingRestaurant?.price?.toString()}
+                    onValueChange={(value) => setEditingRestaurant({...editingRestaurant, price: parseInt(value)})}
+                  >
+                    <SelectTrigger className="h-10 sm:h-12">
+                      <SelectValue placeholder="€" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">€</SelectItem>
+                      <SelectItem value="2">€€</SelectItem>
+                      <SelectItem value="3">€€€</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            {/* Website */}
-            <div className="space-y-2">
-              <Label>Website</Label>
-              <Input
-                type="url"
-                value={editingRestaurant?.website || ''}
-                onChange={(e) => setEditingRestaurant({
-                  ...editingRestaurant,
-                  website: e.target.value
-                })}
-                placeholder="https://example.com"
-                className="mt-2"
-              />
-            </div>
-
-            {/* Price Selection */}
-            <div className="space-y-2">
-              <Label>Price</Label>
-              <Select
-                value={editingRestaurant?.price?.toString() || ''}
-                onValueChange={(value) => setEditingRestaurant({...editingRestaurant, price: parseInt(value)})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="€" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">€</SelectItem>
-                  <SelectItem value="2">€€</SelectItem>
-                  <SelectItem value="3">€€€</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Footer - added safe area padding for mobile */}
+            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t bg-background">
+              <div className="max-w-2xl mx-auto">
+                <Button 
+                  onClick={() => handleSaveEdit('restaurant')}
+                  className="w-full h-10 sm:h-12"
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </div>
-
-          <DialogFooter>
-            <Button 
-              className="bg-black text-white hover:bg-black/90"
-              onClick={() => handleSaveEdit('restaurant')}
-            >
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Alert Dialog with higher z-index */}
       <AlertDialog 
@@ -875,36 +923,68 @@ const AdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Add New Type Dialog */}
-      <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Type</DialogTitle>
+      {/* Add New City Dialog */}
+      <Dialog open={isAddingCity} onOpenChange={setIsAddingCity}>
+        <DialogContent className="bg-background p-0 max-h-[90vh] w-full max-w-lg">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle>Add New City</DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="Type name"
-            value={newTypeName}
-            onChange={(e) => setNewTypeName(e.target.value)}
-          />
-          <DialogFooter>
-            <Button onClick={handleAddNewType}>Add Type</Button>
+          <div className="px-6 py-4 h-full overflow-y-auto">
+            <div className="space-y-4">
+              <Label>City Name</Label>
+              <Input
+                value={newCityName}
+                onChange={(e) => setNewCityName(e.target.value)}
+                placeholder="Enter city name"
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t">
+            <div className="flex justify-end gap-4">
+              <Button variant="outline" onClick={() => setIsAddingCity(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAddNewCity}
+                disabled={!newCityName.trim()}
+              >
+                Add City
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add New City Dialog */}
-      <Dialog open={isAddingCity} onOpenChange={setIsAddingCity}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New City</DialogTitle>
+      {/* Add New Type Dialog */}
+      <Dialog open={isAddingType} onOpenChange={setIsAddingType}>
+        <DialogContent className="bg-background p-0 max-h-[90vh] w-full max-w-lg">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle>Add New Type</DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="City name"
-            value={newCityName}
-            onChange={(e) => setNewCityName(e.target.value)}
-          />
-          <DialogFooter>
-            <Button onClick={handleAddNewCity}>Add City</Button>
+          <div className="px-6 py-4 h-full overflow-y-auto">
+            <div className="space-y-4">
+              <Label>Type Name</Label>
+              <Input
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                placeholder="Enter type name"
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t">
+            <div className="flex justify-end gap-4">
+              <Button variant="outline" onClick={() => setIsAddingType(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAddNewType}
+                disabled={!newTypeName.trim()}
+              >
+                Add Type
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

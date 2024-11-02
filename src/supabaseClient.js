@@ -1128,7 +1128,7 @@ export const followUser = async (followerId, followingId) => {
         follower_id: followerId,
         following_id: followingId
       })
-      .select('*, profiles!followers_following_id_fkey(username)')
+      .select()
       .single();
 
     if (error) {
@@ -1291,7 +1291,7 @@ export const getUserStats = async (userId) => {
       supabase
         .from('restaurant_reviews')
         .select('id', { count: 'exact' })
-        .eq('user_id', userId),
+        .eq('user_id', userId), // Make sure we pass userId as string
       
       // Get count of to-try restaurants
       supabase
