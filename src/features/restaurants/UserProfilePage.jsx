@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,19 +13,14 @@ import {
   AlertDialogTitle,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Settings, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
-import { 
-  followUser, 
-  unfollowUser, 
-  getFollowers, 
-  getFollowing, 
-  isFollowing,
-  getUserStats 
-} from '@/supabaseClient';
 
 const UserProfilePage = ({ currentUser }) => {
   const navigate = useNavigate();
+  const { id: viewingUserId } = useParams();
+
+  // State declarations
   const [viewedUser, setViewedUser] = useState(null);
   const [following, setFollowing] = useState(false);
   const [stats, setStats] = useState({
@@ -38,277 +33,370 @@ const UserProfilePage = ({ currentUser }) => {
   const [followingUsers, setFollowingUsers] = useState([]);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
 
-  const isOwnProfile = viewedUser?.id === currentUser.id;
+  const isOwnProfile = viewedUser?.id === currentUser?.id;
 
-  // Fetch recent activity
-  const fetchRecentActivity = async (userId) => {
+  const fetchRecentActivity = useCallback(async (userId) => {
+    if (!userId) return;
+
     try {
-      // Get the 5 most recent reviews and notes
-      const [reviewsResponse, notesResponse] = await Promise.all([
-        supabase
-          .from('restaurant_reviews')
-          .select(`
-            *,
-            restaurants (
-              id,
-              name,
-              restaurant_types (name)
-            )
-          `)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(3),
+      const { data: reviews } = await supabase
+        .from('restaurant_reviews')
+        .select(`
+          *,
+          restaurants (
+            id,
+            name,
+            restaurant_types (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(3);
 
-        supabase
-          .from('bookmarks')
-          .select(`
-            *,
-            restaurants (
-              id,
-              name,
-              restaurant_types (name)
-            )
-          `)
-          .eq('user_id', userId)
-          .eq('type', 'to_try')
-          .order('created_at', { ascending: false })
-          .limit(3)
-      ]);
+      const { data: bookmarks } = await supabase
+        .from('bookmarks')
+        .select(`
+          *,
+          restaurants (
+            id,
+            name,
+            restaurant_types (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('type', 'to_try')
+        .order('created_at', { ascending: false })
+        .limit(3);
 
-      if (reviewsResponse.error) throw reviewsResponse.error;
-      if (notesResponse.error) throw notesResponse.error;
-
-      // Combine and sort activities
       const activities = [
-        ...(reviewsResponse.data || []).map(review => ({
+        ...(reviews || []).map(review => ({
           type: 'review',
           date: review.created_at,
           data: review
         })),
-        ...(notesResponse.data || []).map(bookmark => ({
+        ...(bookmarks || []).map(bookmark => ({
           type: 'to_try',
           date: bookmark.created_at,
           data: bookmark
         }))
       ].sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 5);
+        .slice(0, 5);
 
       setRecentActivity(activities);
     } catch (err) {
       console.error('Error fetching recent activity:', err);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    const userId = window.location.pathname.split('/profile/')[1];
-    const loadUserData = async () => {
-      try {
-        setLoading(true);
-        // Get user profile from your existing profiles table
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
+  const fetchUserData = useCallback(async () => {
+    if (!viewingUserId || !currentUser) return;
+
+    setLoading(true);
+    try {
+      // Fetch profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', viewingUserId)
+        .single();
+
+      if (profileError) throw profileError;
+      setViewedUser(profile);
+
+      // Fetch stats
+      const [
+        { count: visitedCount },
+        { count: toTryCount },
+        { count: followersCount },
+        { count: followingCount }
+      ] = await Promise.all([
+        supabase
+          .from('restaurant_reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', viewingUserId),
+        supabase
+          .from('bookmarks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', viewingUserId)
+          .eq('type', 'to_try'),
+        supabase
+          .from('followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', viewingUserId),
+        supabase
+          .from('followers')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', viewingUserId)
+      ]);
+
+      setStats({
+        visitedCount: visitedCount || 0,
+        toTryCount: toTryCount || 0,
+        followersCount: followersCount || 0,
+        followingCount: followingCount || 0
+      });
+
+      // Fetch follow status and follow data
+      if (!isOwnProfile) {
+        const { data: followData } = await supabase
+          .from('followers')
           .select('*')
-          .eq('id', userId)
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', viewingUserId)
           .single();
 
-        if (profileError) throw profileError;
-        setViewedUser(profile);
-
-        const stats = await getUserStats(userId);
-        setStats(stats);
-
-        if (!isOwnProfile) {
-          const followStatus = await isFollowing(currentUser.id, userId);
-          setFollowing(followStatus);
-        }
-
-        const [followersData, followingData] = await Promise.all([
-          getFollowers(userId),
-          getFollowing(userId)
-        ]);
-
-        setFollowers(followersData);
-        setFollowingUsers(followingData);
-
-        // Fetch recent activity
-        await fetchRecentActivity(userId);
-      } catch (err) {
-        console.error('Error loading profile data:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+        setFollowing(!!followData);
       }
-    };
 
-    loadUserData();
-  }, [currentUser.id]);
+      // Fetch followers and following
+      const [{ data: followersData }, { data: followingData }] = await Promise.all([
+        supabase
+          .from('followers')
+          .select(`
+            follower:profiles!followers_follower_id_fkey(
+              id,
+              username,
+              email
+            )
+          `)
+          .eq('following_id', viewingUserId),
+        supabase
+          .from('followers')
+          .select(`
+            following:profiles!followers_following_id_fkey(
+              id,
+              username,
+              email
+            )
+          `)
+          .eq('follower_id', viewingUserId)
+      ]);
+
+      // Transform the data to get the actual profiles
+      const transformedFollowers = (followersData || [])
+        .map(item => item.follower)
+        .filter(follower => follower.id !== currentUser.id); // Filter out current user
+
+      const transformedFollowing = (followingData || [])
+        .map(item => item.following)
+        .filter(following => following.id !== currentUser.id); // Filter out current user
+
+      setFollowers(transformedFollowers);
+      setFollowingUsers(transformedFollowing);
+
+      // Fetch recent activity
+      await fetchRecentActivity(viewingUserId);
+
+    } catch (err) {
+      console.error('Error loading profile data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [viewingUserId, currentUser, isOwnProfile, fetchRecentActivity]);
+
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
 
   const handleFollow = async () => {
-    if (!viewedUser) return;
+    if (!viewingUserId || !currentUser?.id || isOwnProfile) return;
     
     try {
       setLoading(true);
       
       if (following) {
-        await unfollowUser(currentUser.id, viewedUser.id);
-        setStats(prev => ({ ...prev, followersCount: prev.followersCount - 1 }));
+        await supabase
+          .from('followers')
+          .delete()
+          .match({
+            follower_id: currentUser.id,
+            following_id: viewingUserId
+          });
+        
+        setStats(prev => ({
+          ...prev,
+          followersCount: Math.max(0, prev.followersCount - 1)
+        }));
+        setFollowing(false);
       } else {
-        await followUser(currentUser.id, viewedUser.id);
-        setStats(prev => ({ ...prev, followersCount: prev.followersCount + 1 }));
+        await supabase
+          .from('followers')
+          .insert({
+            follower_id: currentUser.id,
+            following_id: viewingUserId
+          });
+        
+        setStats(prev => ({
+          ...prev,
+          followersCount: prev.followersCount + 1
+        }));
+        setFollowing(true);
       }
-      
-      setFollowing(!following);
     } catch (err) {
-      console.error('Error following/unfollowing:', err);
-      setError(err.message);
+      console.error('Error updating follow status:', err);
+      setError('Failed to update follow status');
     } finally {
       setLoading(false);
     }
   };
 
   const handleUserClick = (userId) => {
-    setShowFollowers(false);
-    setShowFollowing(false);
     navigate(`/profile/${userId}`);
   };
 
-  const navigateToList = (filter) => {
-    if (filter === 'visited') {
-      navigate(`/user/${viewedUser.id}`, { state: { tab: 'visited' } });
-    } else if (filter === 'to-try') {
-      navigate(`/user/${viewedUser.id}`, { state: { tab: 'toTry' } });
-    }
-  };
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
-  if (!viewedUser) return <div className="p-8 text-center">User not found</div>;
+  if (error) {
+    return <div className="flex justify-center items-center min-h-screen text-red-500">{error}</div>;
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Avatar className="h-24 w-24">
-            <AvatarFallback className="text-4xl">
-              {viewedUser.username?.substring(0, 2).toUpperCase()}
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-14 w-14">
+            <AvatarFallback className="text-xl">
+              {viewedUser?.username?.substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-semibold mb-1">{viewedUser.username}</h1>
-            <p className="text-muted-foreground">{viewedUser.email}</p>
+            <h1 className="text-base font-semibold">{viewedUser?.username}</h1>
+            <p className="text-xs text-muted-foreground">{viewedUser?.email}</p>
           </div>
         </div>
 
-        {isOwnProfile ? (
-          <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-        ) : (
-          <Button
-            variant={following ? "outline" : "default"}
-            size="sm"
-            onClick={handleFollow}
-            disabled={loading}
-          >
-            {following ? 'Following' : 'Follow'}
-          </Button>
-        )}
+        <div className="sm:ml-auto">
+          {!isOwnProfile && (
+            <Button
+              variant={following ? "outline" : "default"}
+              size="sm"
+              onClick={handleFollow}
+              disabled={loading}
+              className="w-full sm:w-auto"
+            >
+              {following ? 'Following' : 'Follow'}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8 text-center">
+      {/* Stats section */}
+      <div className="grid grid-cols-4 gap-1 mb-6 bg-muted/50 rounded-lg p-2 text-center">
         <button 
-          onClick={() => navigateToList('visited')}
-          className="p-4 hover:bg-accent rounded-lg transition-colors"
+          onClick={() => navigate(`/user/${viewingUserId}`, { state: { tab: 'visited' }})}
+          className="px-2 py-1.5 hover:bg-accent rounded-md transition-colors"
         >
-          <div className="text-2xl font-semibold">{stats.visitedCount}</div>
-          <div className="text-sm text-muted-foreground">Visited</div>
+          <div className="text-sm font-semibold">{stats.visitedCount}</div>
+          <div className="text-[10px] text-muted-foreground">Visited</div>
         </button>
 
         <button 
-          onClick={() => navigateToList('to-try')}
-          className="p-4 hover:bg-accent rounded-lg transition-colors"
+          onClick={() => navigate(`/user/${viewingUserId}`, { state: { tab: 'toTry' }})}
+          className="px-2 py-1.5 hover:bg-accent rounded-md transition-colors"
         >
-          <div className="text-2xl font-semibold">{stats.toTryCount}</div>
-          <div className="text-sm text-muted-foreground">To Try</div>
+          <div className="text-sm font-semibold">{stats.toTryCount}</div>
+          <div className="text-[10px] text-muted-foreground">To Try</div>
         </button>
 
         <button 
           onClick={() => setShowFollowers(true)}
-          className="p-4 hover:bg-accent rounded-lg transition-colors"
+          className="px-2 py-1.5 hover:bg-accent rounded-md transition-colors"
         >
-          <div className="text-2xl font-semibold">{stats.followersCount}</div>
-          <div className="text-sm text-muted-foreground">Followers</div>
+          <div className="text-sm font-semibold">{stats.followersCount}</div>
+          <div className="text-[10px] text-muted-foreground">Followers</div>
         </button>
 
         <button 
           onClick={() => setShowFollowing(true)}
-          className="p-4 hover:bg-accent rounded-lg transition-colors"
+          className="px-2 py-1.5 hover:bg-accent rounded-md transition-colors"
         >
-          <div className="text-2xl font-semibold">{stats.followingCount}</div>
-          <div className="text-sm text-muted-foreground">Following</div>
+          <div className="text-sm font-semibold">{stats.followingCount}</div>
+          <div className="text-[10px] text-muted-foreground">Following</div>
         </button>
       </div>
 
-      {/* Recent Activity */}
+      {/* Activity section */}
       {recentActivity.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Recent Activity</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Recent Activity</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div 
-                key={index}
-                onClick={() => navigate(`/user/${viewedUser.id}/restaurant/${activity.data.restaurant_id}`)}
-                className="flex items-center justify-between p-2 hover:bg-accent rounded-lg cursor-pointer"
-              >
-                <div>
-                  <div className="font-medium">{activity.data.restaurants.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {activity.data.restaurants.restaurant_types?.name}
+          <CardContent className="pt-0">
+            <div className="space-y-4">
+              {recentActivity.map((activity, index) => (
+                <div 
+                  key={index}
+                  onClick={() => navigate(`/user/${viewedUser.id}/restaurant/${activity.data.restaurant_id}`)}
+                  className="flex items-center justify-between hover:bg-accent rounded-lg cursor-pointer p-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{activity.data.restaurants.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {activity.data.restaurants.restaurant_types?.name}
+                    </div>
+                  </div>
+                  <div className="ml-2 flex-shrink-0">
+                    {activity.type === 'review' ? (
+                      <div className="flex items-center">
+                        <Star className="h-3 w-3 text-yellow-400 fill-yellow-400 mr-1" />
+                        <span className="text-xs">{activity.data.rating.toFixed(1)}</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">Want to try</div>
+                    )}
                   </div>
                 </div>
-                {activity.type === 'review' ? (
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400 mr-1" />
-                    <span>{activity.data.rating.toFixed(1)}</span>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Want to try</div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Dialogs */}
+      {/* Followers Dialog */}
       <Dialog open={showFollowers} onOpenChange={setShowFollowers}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md w-full">
           <DialogHeader>
             <DialogTitle>Followers</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {followers.map((follower) => (
               <div
                 key={follower.id}
-                className="flex items-center justify-between p-2 hover:bg-accent rounded-md cursor-pointer"
-                onClick={() => handleUserClick(follower.id)}
+                className="flex items-center justify-between p-3 hover:bg-accent rounded-md"
               >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
+                <div 
+                  className="flex items-center gap-3 min-w-0 cursor-pointer"
+                  onClick={() => {
+                    setShowFollowers(false);
+                    handleUserClick(follower.id);
+                  }}
+                >
+                  <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarFallback>
                       {follower.username?.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span>{follower.username}</span>
+                  <span className="truncate">{follower.username}</span>
                 </div>
+                {!isOwnProfile && follower.id !== currentUser.id && (
+                  <Button 
+                    size="sm" 
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await handleFollow();
+                    }}
+                  >
+                    Follow Back
+                  </Button>
+                )}
               </div>
             ))}
             {followers.length === 0 && (
@@ -320,25 +408,26 @@ const UserProfilePage = ({ currentUser }) => {
         </DialogContent>
       </Dialog>
 
+      {/* Following Dialog */}
       <Dialog open={showFollowing} onOpenChange={setShowFollowing}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md w-full">
           <DialogHeader>
             <DialogTitle>Following</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {followingUsers.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center justify-between p-2 hover:bg-accent rounded-md cursor-pointer"
+                className="flex items-center justify-between p-3 hover:bg-accent rounded-md cursor-pointer"
                 onClick={() => handleUserClick(user.id)}
               >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarFallback>
                       {user.username?.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span>{user.username}</span>
+                  <span className="truncate">{user.username}</span>
                 </div>
               </div>
             ))}
@@ -351,7 +440,7 @@ const UserProfilePage = ({ currentUser }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Error Alert */}
+      {/* Error Alert Dialog */}
       <AlertDialog open={!!error} onOpenChange={() => setError(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

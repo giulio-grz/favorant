@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Sheet, SheetContent, SheetTrigger } from '../../components/ui/sheet';
-import { Menu, PlusCircle, Filter, LogOut, Shield, User } from 'lucide-react';
-import { searchUsers, signOut } from '../../supabaseClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Menu, PlusCircle, Filter, LogOut, Shield, Settings, User } from 'lucide-react';
+import { searchUsers, signOut } from '@/supabaseClient';
 
 const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, user, setUser, canAdd }) => {
   const navigate = useNavigate();
@@ -38,14 +39,22 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Menu className="h-[1.2rem] w-[1.2rem]" />
-          <span className="sr-only">Toggle menu</span>
+        <Button variant="ghost" className="p-0">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="/avatars/01.png" alt={user.email} />
+            <AvatarFallback>{user.email[0].toUpperCase()}</AvatarFallback>
+          </Avatar>
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="w-[300px] sm:w-[400px] p-0">
         <div className="flex flex-col h-full pt-14">
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4 border-b">
+            <div className="flex flex-col space-y-1 pb-4">
+              <p className="text-sm font-medium">{user.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {user.profile?.username || user.email}
+              </p>
+            </div>
             <Input
               type="text"
               placeholder="Search users..."
@@ -69,8 +78,8 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
               ))}
             </ul>
           )}
-           <nav className="flex-grow overflow-y-auto">
-            <ul className="space-y-4 p-4">
+          <nav className="flex-grow overflow-y-auto">
+            <ul className="space-y-2 p-4">
               {canAdd && (
                 <li>
                   <Button variant="ghost" className="w-full justify-start" onClick={() => { onAddClick(); setIsOpen(false); }}>
@@ -96,6 +105,19 @@ const MobileMenu = ({ onAddClick, onFilterClick, onUserSelect, currentUserId, us
                 >
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                </Button>
+              </li>
+              <li>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start" 
+                  onClick={() => { 
+                    navigate('/settings'); 
+                    setIsOpen(false); 
+                  }}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
                 </Button>
               </li>
               {user?.profile?.is_admin && (
