@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -153,40 +153,55 @@ const UserProfilePage = ({ currentUser }) => {
       }
 
       // Fetch followers and following
-      const [{ data: followersData }, { data: followingData }] = await Promise.all([
+      const [{ data: followersData, error: followersError }, { data: followingData, error: followingError }] = await Promise.all([
         supabase
           .from('followers')
           .select(`
-            follower:profiles!followers_follower_id_fkey(
+            follower:profiles!followers_follower_id_fkey (
               id,
               username,
               email
             )
           `)
-          .eq('following_id', viewingUserId),
+          .eq('following_id', viewingUserId)
+          .throwOnError(), // Add this
+        
         supabase
           .from('followers')
           .select(`
-            following:profiles!followers_following_id_fkey(
+            following:profiles!followers_following_id_fkey (
               id,
               username,
               email
             )
           `)
           .eq('follower_id', viewingUserId)
+          .throwOnError() // Add this
       ]);
 
-      // Transform the data to get the actual profiles
-      const transformedFollowers = (followersData || [])
-        .map(item => item.follower)
-        .filter(follower => follower.id !== currentUser.id); // Filter out current user
+      if (followersError) throw new Error(`Followers error: ${followersError.message}`);
+      if (followingError) throw new Error(`Following error: ${followingError.message}`);
 
-      const transformedFollowing = (followingData || [])
-        .map(item => item.following)
-        .filter(following => following.id !== currentUser.id); // Filter out current user
+      // Ensure we have proper data before transforming
+      if (!followersData) {
+        console.warn('No followers data returned');
+        setFollowers([]);
+      } else {
+        const transformedFollowers = followersData
+          .map(item => item.follower)
+          .filter(Boolean);
+        setFollowers(transformedFollowers);
+      }
 
-      setFollowers(transformedFollowers);
-      setFollowingUsers(transformedFollowing);
+      if (!followingData) {
+        console.warn('No following data returned');
+        setFollowingUsers([]);
+      } else {
+        const transformedFollowing = followingData
+          .map(item => item.following)
+          .filter(Boolean);
+        setFollowingUsers(transformedFollowing);
+      }
 
       // Fetch recent activity
       await fetchRecentActivity(viewingUserId);
@@ -365,6 +380,9 @@ const UserProfilePage = ({ currentUser }) => {
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md w-full">
           <DialogHeader>
             <DialogTitle>Followers</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              People who follow {viewedUser?.username}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             {followers.map((follower) => (
@@ -413,6 +431,9 @@ const UserProfilePage = ({ currentUser }) => {
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md w-full">
           <DialogHeader>
             <DialogTitle>Following</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              People {viewedUser?.username} follows
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             {followingUsers.map((user) => (

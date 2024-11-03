@@ -1,108 +1,120 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../../supabaseClient';
+import { supabase, executeWithRetry } from '@/supabaseClient';
 
 export const useTypesAndCities = () => {
   const [types, setTypes] = useState([]);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const MAX_RETRIES = 3;
 
   const fetchTypes = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('restaurant_types')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      setTypes(data || []);
+      return await executeWithRetry(async () => {
+        const { data, error } = await supabase
+          .from('restaurant_types')
+          .select('*')
+          .eq('status', 'approved')
+          .order('name');
+        
+        if (error) throw error;
+        return data || [];
+      });
     } catch (error) {
       console.error('Error fetching types:', error);
-      setError(error.message);
+      throw error;
     }
   }, []);
 
   const fetchCities = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('cities')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      setCities(data || []);
+      return await executeWithRetry(async () => {
+        const { data, error } = await supabase
+          .from('cities')
+          .select('*')
+          .eq('status', 'approved')
+          .order('name');
+        
+        if (error) throw error;
+        return data || [];
+      });
     } catch (error) {
       console.error('Error fetching cities:', error);
-      setError(error.message);
+      throw error;
     }
   }, []);
 
-  const addType = async (newType) => {
-    try {
-      const { data, error } = await supabase
-        .from('restaurant_types')
-        .insert([{
-          name: newType.name.trim(),
-          created_by: newType.created_by,
-          status: 'pending'
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      setTypes(prevTypes => [...prevTypes, data]);
-      return data;
-    } catch (error) {
-      console.error('Error adding type:', error);
-      throw error;
-    }
-  };
-
-  const addCity = async (newCity) => {
-    try {
-      const { data, error } = await supabase
-        .from('cities')
-        .insert([{
-          name: newCity.name.trim(),
-          created_by: newCity.created_by,
-          status: 'pending'
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      setCities(prevCities => [...prevCities, data]);
-      return data;
-    } catch (error) {
-      console.error('Error adding city:', error);
-      throw error;
-    }
-  };
-
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      await Promise.all([fetchTypes(), fetchCities()]);
+      const [newTypes, newCities] = await Promise.all([
+        fetchTypes(),
+        fetchCities()
+      ]);
+      
+      if (!newTypes || !newCities) throw new Error('Failed to fetch data');
+      
+      setTypes(newTypes);
+      setCities(newCities);
+      setRetryAttempt(0); // Reset retry counter on success
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setError(error);
+      
+      // If we haven't exceeded max retries and we're online, try again
+      if (retryAttempt < MAX_RETRIES && navigator.onLine) {
+        setRetryAttempt(prev => prev + 1);
+        const delay = Math.pow(2, retryAttempt) * 1000; // Exponential backoff
+        setTimeout(refresh, delay);
+      }
     } finally {
       setLoading(false);
     }
-  }, [fetchTypes, fetchCities]);
+  }, [fetchTypes, fetchCities, retryAttempt]);
 
+  // Initial load
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  // Handle online/offline events
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Connection restored, refreshing data...');
+      setRetryAttempt(0); // Reset retry counter
+      refresh();
+    };
+
+    const handleOffline = () => {
+      console.log('Connection lost, waiting for reconnection...');
+      setError(new Error('The internet connection appears to be offline'));
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Check initial connection state
+    if (!navigator.onLine) {
+      handleOffline();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [refresh]);
+
+  // Return cached data even if there's an error
   return {
     types,
     cities,
-    setTypes, 
+    setTypes,
     setCities,
-    addType,
-    addCity,
-    refresh,
     loading,
-    error
+    error,
+    refresh
   };
 };

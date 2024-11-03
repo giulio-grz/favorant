@@ -2,12 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import markerIcon from '@/assets/marker-icon.png';
+import MarkerIcon from '@/assets/marker-icon.png';
 
 // Create custom icon
 const customIcon = new L.Icon({
-  iconUrl: markerIcon,
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconUrl: MarkerIcon,
   iconSize: [25, 31],
   iconAnchor: [12.5, 31],
   popupAnchor: [1, -31],
@@ -28,7 +27,7 @@ const RestaurantMap = ({
   city, 
   latitude, 
   longitude, 
-  updateCoordinates = null // Make it optional with default null
+  updateCoordinates = null 
 }) => {
   const [position, setPosition] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -135,7 +134,10 @@ const RestaurantMap = ({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        <Marker position={position} icon={customIcon}>
+        <Marker 
+          position={position} 
+          icon={customIcon}
+        >
           <Popup>
             <div className="text-sm">
               <strong>{address}</strong>
