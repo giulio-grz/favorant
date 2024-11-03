@@ -39,7 +39,6 @@ const createProfile = async (userId, email, username) => {
 };
 
 // Lazy load components
-// Lazy load components
 const Auth = lazy(() => import('./components/Auth'));
 const RestaurantDashboard = lazy(() => import('./features/restaurants/RestaurantDashboard'));
 const RestaurantDetails = lazy(() => import('./features/restaurants/components/RestaurantDetails'));
@@ -67,7 +66,9 @@ const DashboardWrapper = ({ user, filters, setFilters, sortOption, setSortOption
 function App() {
   const [user, setUser] = useState(null);
   const [restaurants, setRestaurants] = useState([]);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [filters, setFilters] = useState({
     name: '',
@@ -88,117 +89,111 @@ function App() {
     error: entitiesError 
   } = useTypesAndCities();
 
-  const initializeAuth = async () => {
-    try {
-      setLoading(true);
-      // Get initial session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-  
-      if (session?.user) {
-        // Get profile in the same try block to ensure atomicity
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (profileError) throw profileError;
-        
-        setUser({ ...session.user, profile });
-      }
-    } catch (error) {
-      console.error('Error initializing auth:', error);
-      // Clear any partial state on error
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Replace your existing auth useEffect with this
-useEffect(() => {
-  // Initialize auth on mount
-  initializeAuth();
-
-  // Set up auth state change subscription
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('Auth state changed:', event, session?.user);
-
-    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-      try {
-        if (!session?.user) {
-          console.error('No user in session');
-          return;
-        }
-
-        // Get profile data
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (!profileError) {
-          setUser({ ...session.user, profile });
-        }
-        
-      } catch (error) {
-        console.error('Error handling auth state change:', error);
-      }
-    } else if (event === 'SIGNED_OUT') {
-      setUser(null);
-    }
-  });
-
-  // Set up session refresh interval
-  const refreshInterval = setInterval(async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (!error && session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        setUser({ ...session.user, profile });
-      }
-    } catch (error) {
-      console.error('Error refreshing session:', error);
-    }
-  }, 600000); // 10 minutes
-
-  // Cleanup function
-  return () => {
-    subscription?.unsubscribe();
-    clearInterval(refreshInterval);
-  };
-}, []); // Empty dependency array since we want this to run once on mount
-
-  // Add this to handle session refresh
+  // Initialize auth and handle session changes
   useEffect(() => {
-    const refreshSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error refreshing session:', error);
-        return;
-      }
-      if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+    let mounted = true;
+    let authTimeout;
+    let sessionTimeout;
+
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        setUser({ ...session.user, profile });
+        if (sessionError) throw sessionError;
+
+        if (session?.user) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError && profileError.code !== 'PGRST116') {
+            throw profileError;
+          }
+
+          if (mounted) {
+            setUser({ ...session.user, profile: profile || null });
+          }
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mounted) {
+          setError(error.message);
+        }
+      } finally {
+        if (mounted) {
+          setAuthInitialized(true);
+          setLoading(false);
+        }
       }
     };
 
-    // Refresh session every 10 minutes
-    const intervalId = setInterval(refreshSession, 600000);
+    // Set up auth state change subscription with debounce
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
 
-    return () => clearInterval(intervalId);
+      clearTimeout(authTimeout);
+      
+      authTimeout = setTimeout(async () => {
+        if (!mounted) return;
+
+        try {
+          if (session?.user) {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profileError && profileError.code !== 'PGRST116') {
+              throw profileError;
+            }
+
+            setUser({ ...session.user, profile: profile || null });
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Auth state change error:', error);
+          setError(error.message);
+        }
+      }, 100);
+    });
+
+    // Set up session refresh interval
+    sessionTimeout = setInterval(async () => {
+      if (!mounted) return;
+      
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!error && session) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (mounted) {
+            setUser(prev => ({ ...prev, ...session.user, profile }));
+          }
+        }
+      } catch (error) {
+        console.error('Session refresh error:', error);
+      }
+    }, 300000); // 5 minutes
+
+    // Initialize auth
+    initializeAuth();
+
+    // Cleanup
+    return () => {
+      mounted = false;
+      clearTimeout(authTimeout);
+      clearInterval(sessionTimeout);
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const addLocalRestaurant = useCallback((newRestaurant) => {
@@ -214,7 +209,9 @@ useEffect(() => {
   }, []);
 
   const deleteLocalRestaurant = useCallback((id) => {
-    setRestaurants(prevRestaurants => prevRestaurants.filter(restaurant => restaurant.id !== id));
+    setRestaurants(prevRestaurants => 
+      prevRestaurants.filter(restaurant => restaurant.id !== id)
+    );
   }, []);
 
   const handleApplyFilters = useCallback((newFilters, newSortOption) => {
@@ -222,8 +219,29 @@ useEffect(() => {
     setSortOption(newSortOption);
   }, []);
 
-  if (loading) {
+  // Handle loading states
+  if (!authInitialized || loading) {
     return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg max-w-md">
+          <h2 className="font-semibold mb-2">Error Initializing App</h2>
+          <p className="text-sm">{error}</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('supabase.auth.token');
+              window.location.reload();
+            }}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
+          >
+            Clear Cache & Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -283,7 +301,6 @@ useEffect(() => {
                   )
                 } 
               />
-              {/* Add this new route */}
               <Route 
                 path="/profile/:id" 
                 element={
@@ -296,7 +313,6 @@ useEffect(() => {
                   )
                 } 
               />
-              {/* Redirect /restaurant/:id to /user/:userId/restaurant/:id */}
               <Route 
                 path="/restaurant/:id" 
                 element={
@@ -311,21 +327,6 @@ useEffect(() => {
                 } 
               />
 
-              <Route 
-                path="/user/:userId/restaurant/:id" 
-                element={
-                  user ? (
-                    <RestaurantDetails 
-                      user={user}
-                      updateLocalRestaurant={updateLocalRestaurant}
-                      deleteLocalRestaurant={deleteLocalRestaurant}
-                      addLocalRestaurant={addLocalRestaurant}
-                    />
-                  ) : (
-                    <Navigate to="/auth" replace />
-                  )
-                } 
-              />
               <Route 
                 path="/user/:userId/restaurant/:id" 
                 element={

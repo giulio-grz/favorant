@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import React from 'react';
+
 const RestaurantList = ({ restaurants, onRestaurantClick }) => {
   return (
     <div className="space-y-4">
@@ -5,7 +8,7 @@ const RestaurantList = ({ restaurants, onRestaurantClick }) => {
         <div 
           key={restaurant.id} 
           className="cursor-pointer hover:bg-slate-50 transition-all"
-          onClick={() => handleRestaurantClick(restaurant.id)}
+          onClick={() => onRestaurantClick(restaurant.id)}
         >
           <div className="flex items-start p-4 relative">
             <div className="h-16 w-16 bg-slate-100 rounded-lg flex items-center justify-center text-xl font-semibold text-slate-500 relative">
@@ -17,9 +20,9 @@ const RestaurantList = ({ restaurants, onRestaurantClick }) => {
                   </Badge>
                 </div>
               )}
-              {!restaurant.is_to_try && restaurant.aggregate_rating && (
+              {!restaurant.is_to_try && restaurant.user_rating && (
                 <div className="absolute -bottom-2 -right-2 bg-white rounded-full px-2 py-0.5 text-sm border">
-                  {restaurant.aggregate_rating.toFixed(1)}
+                  {restaurant.user_rating.toFixed(1)}
                 </div>
               )}
             </div>
