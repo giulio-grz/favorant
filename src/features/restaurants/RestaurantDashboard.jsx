@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import CityMap from './components/CityMap';
 
 // formatRating function
 const formatRating = (rating) => {
@@ -328,6 +329,13 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
           <SearchBar onSearch={setSearchQuery} />
         </div>
       </div>
+
+      <CityMap
+        restaurants={filteredRestaurants}
+        cities={restaurants?.map(r => r.cities).filter(Boolean)}
+        onRestaurantClick={handleRestaurantClick}
+        className="mt-6"
+      />
 
       <div className="space-y-4">
         {filteredRestaurants.map((restaurant) => (
