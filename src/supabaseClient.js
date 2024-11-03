@@ -1282,4 +1282,30 @@ export const addRestaurantToUserList = async (userId, restaurantId, isToTry = tr
   });
 };
 
+export const updatePassword = async (currentPassword, newPassword) => {
+  return executeWithRetry(async () => {
+    try {
+      // First verify the current password
+      const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
+        email: supabase.auth.user()?.email,
+        password: currentPassword
+      });
+
+      if (signInError) throw new Error('Current password is incorrect');
+
+      // If current password is correct, update to new password
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      return { success: true, message: 'Password updated successfully' };
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  });
+};
+
 export default supabase;
