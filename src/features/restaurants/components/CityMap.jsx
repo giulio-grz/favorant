@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Map } from 'lucide-react';
+import { Map, Star } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import * as L from 'leaflet';
 import MarkerIcon from '@/assets/marker-icon.png';
@@ -16,21 +17,41 @@ const customIcon = new L.Icon({
   shadowSize: [31, 31]
 });
 
+const InfoBox = ({ restaurant, onRestaurantClick }) => (
+  <div 
+    onClick={() => onRestaurantClick(restaurant.id)}
+    className="bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border cursor-pointer hover:bg-accent transition-colors"
+  >
+    <h3 className="font-medium mb-1">{restaurant.name}</h3>
+    <p className="text-sm text-muted-foreground mb-2">{restaurant.address}</p>
+    <div className="flex items-center gap-2">
+      {restaurant.is_to_try ? (
+        <Badge variant="secondary">To Try</Badge>
+      ) : restaurant.user_rating ? (
+        <div className="flex items-center">
+          <StarIcon className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
+          <span className="text-sm font-medium">
+            {restaurant.user_rating.toFixed(1)}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  </div>
+);
+
 const MapDialog = ({ isOpen, onClose, children, title }) => (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn(
-        "max-w-[95vw] h-[90vh] p-0",
-        "gap-0 overflow-hidden"
-      )}>
-        <DialogHeader className="px-4 py-2 border-b flex justify-between items-center h-12">
-          <DialogTitle className="text-base">
-            Restaurants in {title}
-          </DialogTitle>
-        </DialogHeader>
-        {children}
-      </DialogContent>
-    </Dialog>
-  );
+  <Dialog open={isOpen} onOpenChange={onClose}>
+    <DialogContent className={cn(
+      "max-w-[95vw] h-[90vh] p-0",
+      "gap-0 overflow-hidden"
+    )}>
+      <DialogHeader className="px-4 py-2 border-b flex justify-between items-center h-12">
+        <DialogTitle>Restaurants in {title}</DialogTitle>
+      </DialogHeader>
+      {children}
+    </DialogContent>
+  </Dialog>
+);
 
 const CityMap = ({ 
   restaurants, 
@@ -39,7 +60,7 @@ const CityMap = ({
 }) => {
   const [selectedCity, setSelectedCity] = useState(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
-  const [hoveredRestaurant, setHoveredRestaurant] = useState(null);
+  const [selectedMarker, setSelectedMarker] = useState(null);
   
   const restaurantsByCity = useMemo(() => {
     const grouped = {};
@@ -93,12 +114,12 @@ const CityMap = ({
   const handleCitySelect = (cityId) => {
     setSelectedCity(cityId);
     setIsMapOpen(true);
+    setSelectedMarker(null);
   };
 
-  const handleMarkerClick = (e, restaurant) => {
-    e.originalEvent.stopPropagation();
-    onRestaurantClick(restaurant.id);
-    setIsMapOpen(false); // Close map after clicking
+  const handleMarkerClick = (restaurant, event) => {
+    event.originalEvent.stopPropagation();
+    setSelectedMarker(restaurant);
   };
 
   const selectedCityName = restaurantsByCity[selectedCity]?.cityName;
@@ -125,16 +146,19 @@ const CityMap = ({
 
       <MapDialog 
         isOpen={isMapOpen} 
-        onClose={setIsMapOpen}
-        title={selectedCityName || 'Selected City'}
-        >
+        onClose={() => {
+          setIsMapOpen(false);
+          setSelectedMarker(null);
+        }}
+        title={selectedCityName}
+      >
         <div className="relative flex-1 h-[calc(90vh-60px)]">
           <MapContainer
             center={centerCoordinates}
             zoom={13}
             style={{ height: '100%', width: '100%' }}
             key={`map-${selectedCity}`}
-            className="z-0" // Ensure map stays below popups
+            className="z-0"
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -148,33 +172,34 @@ const CityMap = ({
                   position={[restaurant.latitude, restaurant.longitude]}
                   icon={customIcon}
                   eventHandlers={{
-                    click: (e) => handleMarkerClick(e, restaurant),
-                    mouseover: () => setHoveredRestaurant(restaurant),
-                    mouseout: () => setHoveredRestaurant(null)
+                    click: (e) => handleMarkerClick(restaurant, e)
                   }}
-                >
-                  <Popup>
-                    <div className="p-2 min-w-[200px]">
-                      <h3 className="font-medium mb-1">{restaurant.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{restaurant.address}</p>
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={(e) => handleMarkerClick(e, restaurant)}
-                      >
-                        View Details
-                      </Button>
-                    </div>
-                  </Popup>
-                </Marker>
+                />
             ))}
           </MapContainer>
-          {hoveredRestaurant && (
-            <div className="absolute bottom-4 left-4 right-4 mx-auto max-w-md bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg border z-[400]">
-              <h3 className="font-medium">{hoveredRestaurant.name}</h3>
-              <p className="text-sm text-muted-foreground">{hoveredRestaurant.address}</p>
+          {selectedMarker && (
+          <div className="absolute bottom-4 left-4 right-4 mx-auto max-w-md z-[1000]">
+            <div 
+              onClick={() => onRestaurantClick(selectedMarker.id)}
+              className="bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border cursor-pointer hover:bg-accent transition-colors"
+            >
+              <h3 className="font-medium mb-1">{selectedMarker.name}</h3>
+              <p className="text-sm text-muted-foreground mb-2">{selectedMarker.address}</p>
+              <div className="flex items-center gap-2">
+                {selectedMarker.is_to_try ? (
+                  <Badge variant="secondary">To Try</Badge>
+                ) : selectedMarker.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
+                    <span className="text-sm font-medium">
+                      {selectedMarker.user_rating.toFixed(1)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          )}
+          </div>
+        )}
         </div>
       </MapDialog>
     </div>
