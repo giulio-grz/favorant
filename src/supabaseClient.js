@@ -1308,4 +1308,150 @@ export const updatePassword = async (currentPassword, newPassword) => {
   });
 };
 
+export const getActivityFeed = async (userId) => {
+  return executeWithRetry(async () => {
+    try {
+      // First get the list of users being followed
+      const { data: followingData, error: followingError } = await supabase
+        .from('followers')
+        .select('following_id')
+        .eq('follower_id', userId);
+
+      if (followingError) throw followingError;
+      
+      if (!followingData?.length) {
+        return [];
+      }
+
+      const followingIds = followingData.map(f => f.following_id);
+
+      // Get reviews, bookmarks, and notes in parallel
+      const [reviewsResponse, bookmarksResponse, notesResponse] = await Promise.all([
+        supabase
+          .from('restaurant_reviews')
+          .select(`
+            id,
+            rating,
+            created_at,
+            user_id,
+            restaurant_id,
+            profiles:user_id (
+              username
+            ),
+            restaurants (
+              name,
+              restaurant_types (
+                name
+              ),
+              cities (
+                name
+              )
+            )
+          `)
+          .in('user_id', followingIds)
+          .order('created_at', { ascending: false }),
+
+        supabase
+          .from('bookmarks')
+          .select(`
+            id,
+            created_at,
+            user_id,
+            restaurant_id,
+            profiles:user_id (
+              username
+            ),
+            restaurants (
+              name,
+              restaurant_types (
+                name
+              ),
+              cities (
+                name
+              )
+            )
+          `)
+          .in('user_id', followingIds)
+          .eq('type', 'to_try')
+          .order('created_at', { ascending: false }),
+
+        supabase
+          .from('notes')
+          .select(`
+            id,
+            note,
+            created_at,
+            user_id,
+            restaurant_id,
+            profiles:user_id (
+              username
+            ),
+            restaurants (
+              name,
+              restaurant_types (
+                name
+              ),
+              cities (
+                name
+              )
+            )
+          `)
+          .in('user_id', followingIds)
+          .order('created_at', { ascending: false })
+      ]);
+
+      if (reviewsResponse.error) throw reviewsResponse.error;
+      if (bookmarksResponse.error) throw bookmarksResponse.error;
+      if (notesResponse.error) throw notesResponse.error;
+
+      // Transform and combine the data
+      const activities = [
+        ...(reviewsResponse.data || []).map(review => ({
+          id: review.id,
+          type: 'review',
+          created_at: review.created_at,
+          user_id: review.user_id,
+          username: review.profiles?.username,
+          restaurant_id: review.restaurant_id,
+          restaurant_name: review.restaurants?.name,
+          restaurant_type: review.restaurants?.restaurant_types?.name,
+          city: review.restaurants?.cities?.name,
+          rating: review.rating
+        })),
+        ...(bookmarksResponse.data || []).map(bookmark => ({
+          id: bookmark.id,
+          type: 'bookmark',
+          created_at: bookmark.created_at,
+          user_id: bookmark.user_id,
+          username: bookmark.profiles?.username,
+          restaurant_id: bookmark.restaurant_id,
+          restaurant_name: bookmark.restaurants?.name,
+          restaurant_type: bookmark.restaurants?.restaurant_types?.name,
+          city: bookmark.restaurants?.cities?.name
+        })),
+        ...(notesResponse.data || []).map(note => ({
+          id: note.id,
+          type: 'note',
+          created_at: note.created_at,
+          user_id: note.user_id,
+          username: note.profiles?.username,
+          restaurant_id: note.restaurant_id,
+          restaurant_name: note.restaurants?.name,
+          restaurant_type: note.restaurants?.restaurant_types?.name,
+          city: note.restaurants?.cities?.name,
+          note: note.note
+        }))
+      ];
+
+      // Sort all activities by created_at
+      return activities.sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+      );
+    } catch (error) {
+      console.error('Error fetching activity feed:', error);
+      throw error;
+    }
+  });
+};
+
 export default supabase;

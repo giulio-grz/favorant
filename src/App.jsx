@@ -47,6 +47,7 @@ const UserSettings = lazy(() => import('./features/restaurants/UserSettings'));
 const RestaurantFilter = lazy(() => import('./features/restaurants/components/RestaurantFilter'));
 const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard'));
 const UserProfilePage = lazy(() => import('@/features/restaurants/UserProfilePage'));
+const ActivityFeed = lazy(() => import('@/features/restaurants/components/ActivityFeed'));
 
 // Wrap the RestaurantDashboard route in a component that can use hooks
 const DashboardWrapper = ({ user, filters, setFilters, sortOption, setSortOption }) => {
@@ -308,6 +309,16 @@ function App() {
                     <UserProfilePage 
                       currentUser={user}
                     />
+                  ) : (
+                    <Navigate to="/auth" replace />
+                  )
+                } 
+              />
+              <Route 
+                path="/feed" 
+                element={
+                  user ? (
+                    <ActivityFeed user={user} />
                   ) : (
                     <Navigate to="/auth" replace />
                   )

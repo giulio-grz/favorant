@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
+import { Euro, MapPin, UtensilsCrossed, Star, User, Plus, SlidersHorizontal } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import CityMap from './components/CityMap';
 
@@ -275,7 +275,7 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-44">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
       {viewingUser && (
           <div className="flex items-center space-x-3">
@@ -372,6 +372,24 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-[100]">
+        <Button 
+          className="rounded-full shadow-xl h-12 px-6 bg-primary hover:bg-primary/90 min-w-[120px]"
+          onClick={() => navigate('/add')}
+        >
+          <Plus className="h-5 w-5" />
+          <span className="ml-2">Add</span>
+        </Button>
+        <Button 
+          variant="outline"
+          className="rounded-full shadow-xl h-12 px-6 bg-background border-2 min-w-[120px]"
+          onClick={() => navigate('/filter')}
+        >
+          <SlidersHorizontal className="h-5 w-5" />
+          <span className="ml-2">Filter</span>
+        </Button>
+      </div>
     </div>
   );
 };
