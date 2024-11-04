@@ -3,16 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Star } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 
@@ -164,7 +155,7 @@ const UserProfilePage = ({ currentUser }) => {
             )
           `)
           .eq('following_id', viewingUserId)
-          .throwOnError(), // Add this
+          .throwOnError(),
         
         supabase
           .from('followers')
@@ -176,13 +167,12 @@ const UserProfilePage = ({ currentUser }) => {
             )
           `)
           .eq('follower_id', viewingUserId)
-          .throwOnError() // Add this
+          .throwOnError()
       ]);
 
       if (followersError) throw new Error(`Followers error: ${followersError.message}`);
       if (followingError) throw new Error(`Following error: ${followingError.message}`);
 
-      // Ensure we have proper data before transforming
       if (!followersData) {
         console.warn('No followers data returned');
         setFollowers([]);
@@ -275,7 +265,7 @@ const UserProfilePage = ({ currentUser }) => {
   return (
     <div className="max-w-2xl mx-auto p-4">
       {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-3">
           <Avatar className="h-14 w-14">
             <AvatarFallback className="text-xl">
@@ -283,8 +273,8 @@ const UserProfilePage = ({ currentUser }) => {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-base font-semibold">{viewedUser?.username}</h1>
-            <p className="text-xs text-muted-foreground">{viewedUser?.email}</p>
+            <h1 className="text-xl font-semibold">{viewedUser?.username}</h1>
+            <p className="text-sm text-muted-foreground">{viewedUser?.email}</p>
           </div>
         </div>
 
@@ -304,7 +294,7 @@ const UserProfilePage = ({ currentUser }) => {
       </div>
 
       {/* Stats section */}
-      <div className="grid grid-cols-4 gap-1 mb-6 bg-muted/50 rounded-lg p-2 text-center">
+      <div className="grid grid-cols-4 gap-1 mb-8 bg-muted/50 rounded-lg p-2 text-center">
         <button 
           onClick={() => navigate(`/user/${viewingUserId}`, { state: { tab: 'visited' }})}
           className="px-2 py-1.5 hover:bg-accent rounded-md transition-colors"
@@ -338,42 +328,43 @@ const UserProfilePage = ({ currentUser }) => {
         </button>
       </div>
 
-      {/* Activity section */}
-      {recentActivity.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
-                <div 
-                  key={index}
-                  onClick={() => navigate(`/user/${viewedUser.id}/restaurant/${activity.data.restaurant_id}`)}
-                  className="flex items-center justify-between hover:bg-accent rounded-lg cursor-pointer p-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{activity.data.restaurants.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {activity.data.restaurants.restaurant_types?.name}
-                    </div>
+      {/* Recent Activity section */}
+      <div className="space-y-6">
+        <h2 className="text-lg font-semibold">Recent Activity</h2>
+        
+        <div className="divide-y">
+          {recentActivity.map((activity, index) => (
+            <div 
+              key={index}
+              onClick={() => navigate(`/user/${viewedUser.id}/restaurant/${activity.data.restaurant_id}`)}
+              className="py-4 cursor-pointer hover:bg-accent/5 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium">{activity.data.restaurants.name}</span>
+                {activity.type === 'review' ? (
+                  <div className="flex items-center">
+                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400 mr-1" />
+                    <span className="text-sm font-medium">
+                      {activity.data.rating.toFixed(1)}
+                    </span>
                   </div>
-                  <div className="ml-2 flex-shrink-0">
-                    {activity.type === 'review' ? (
-                      <div className="flex items-center">
-                        <Star className="h-3 w-3 text-yellow-400 fill-yellow-400 mr-1" />
-                        <span className="text-xs">{activity.data.rating.toFixed(1)}</span>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">Want to try</div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ) : (
+                  <span className="text-sm text-muted-foreground">Want to try</span>
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {activity.data.restaurants.restaurant_types?.name}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ))}
+
+          {recentActivity.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No activity yet
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Followers Dialog */}
       <Dialog open={showFollowers} onOpenChange={setShowFollowers}>
@@ -430,7 +421,7 @@ const UserProfilePage = ({ currentUser }) => {
       <Dialog open={showFollowing} onOpenChange={setShowFollowing}>
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md w-full">
           <DialogHeader>
-            <DialogTitle>Following</DialogTitle>
+          <DialogTitle>Following</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               People {viewedUser?.username} follows
             </DialogDescription>
@@ -440,7 +431,10 @@ const UserProfilePage = ({ currentUser }) => {
               <div
                 key={user.id}
                 className="flex items-center justify-between p-3 hover:bg-accent rounded-md cursor-pointer"
-                onClick={() => handleUserClick(user.id)}
+                onClick={() => {
+                  setShowFollowing(false);
+                  handleUserClick(user.id);
+                }}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar className="h-8 w-8 flex-shrink-0">

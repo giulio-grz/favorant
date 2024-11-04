@@ -1,209 +1,218 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../../../components/ui/button';
-import { Label } from '../../../components/ui/label';
-import { Input } from '../../../components/ui/input';
-import { Slider } from '../../../components/ui/slider';
-import { Switch } from "../../../components/ui/switch";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../../../components/ui/accordion';
-import { Badge } from '../../../components/ui/badge';
-import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ChevronLeft, X } from 'lucide-react';
 
-const RestaurantFilter = ({ types, cities, filters, setFilters, sortOption, setSortOption, onApplyFilters }) => {
+const FilterSection = ({ title, onClear, showClear, children }) => (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between px-4">
+      <Label className="text-sm font-normal">{title}</Label>
+      {showClear && (
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={onClear}
+          className="h-8 px-2 text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-4 w-4 mr-1" />
+          Clear
+        </Button>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+const RestaurantFilter = ({ 
+  types, 
+  cities, 
+  filters, 
+  setFilters, 
+  sortOption, 
+  setSortOption, 
+  onApplyFilters 
+}) => {
   const navigate = useNavigate();
 
-  const activeFilterCount = useMemo(() => {
-    return Object.values(filters).filter(value => 
-      value !== null && value !== '' && value !== false && value !== 0
-    ).length + (sortOption !== 'dateAdded' ? 1 : 0);
-  }, [filters, sortOption]);
+  const activeFilterCount = Object.values(filters).filter(value => 
+    value !== null && value !== '' && value !== false && value !== 0
+  ).length + (sortOption !== 'dateAdded' ? 1 : 0);
 
-  const handleApply = () => {
-    onApplyFilters(filters, sortOption);
-    navigate('/');
-  };
-
-  const removeFilter = (key) => {
-    setFilters(prev => ({ ...prev, [key]: null }));
-  };
-
-  const getFilterLabel = (key, value) => {
-    switch (key) {
-      case 'name':
-        return `Name: ${value}`;
-      case 'type_id':
-        return `Type: ${types.find(t => t.id === value)?.name}`;
-      case 'city_id':
-        return `City: ${cities.find(c => c.id === value)?.name}`;
-      case 'toTry':
-        return 'To Try';
-      case 'rating':
-        return `Rating: ≥${value === 10 ? '10' : value.toFixed(1)}`;
+  const handleClearSection = (section) => {
+    switch(section) {
+      case 'type':
+        setFilters(prev => ({ ...prev, type_id: null }));
+        break;
+      case 'city':
+        setFilters(prev => ({ ...prev, city_id: null }));
+        break;
       case 'price':
-        return `Price: ${'€'.repeat(value)}`;
+        setFilters(prev => ({ ...prev, price: null }));
+        break;
+      case 'sort':
+        setSortOption('dateAdded');
+        break;
       default:
-        return '';
+        break;
     }
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <h2 className="text-lg font-semibold">Filter & Sort Restaurants</h2>
-      
-      <div className="flex flex-wrap gap-2 mb-4">
-        {Object.entries(filters).map(([key, value]) => {
-          if (value !== null && value !== '' && value !== false && value !== 0) {
-            return (
-              <Badge key={key} variant="secondary" className="flex items-center gap-1">
-                {getFilterLabel(key, value)}
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-auto p-0 text-secondary-foreground"
-                  onClick={() => removeFilter(key)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </Badge>
-            );
-          }
-          return null;
-        })}
-        {sortOption !== 'dateAdded' && (
-          <Badge variant="secondary" className="flex items-center gap-1">
-            Sort: {sortOption}
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background border-b">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-2">
             <Button 
-              size="sm" 
               variant="ghost" 
-              className="h-auto p-0 text-secondary-foreground"
-              onClick={() => setSortOption('dateAdded')}
+              size="icon"
+              onClick={() => navigate('/')}
+              className="hover:bg-transparent"
             >
-              <X className="h-3 w-3" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
-          </Badge>
-        )}
+            <h1 className="text-lg font-semibold">
+              Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  setFilters({
+                    type_id: null,
+                    city_id: null,
+                    price: null
+                  });
+                  setSortOption('dateAdded');
+                }}
+                className="text-sm font-normal"
+              >
+                Clear all
+              </Button>
+            )}
+            <Button 
+              onClick={() => {
+                onApplyFilters(filters, sortOption);
+                navigate('/');
+              }}
+              className="text-sm font-normal h-8"
+            >
+              Apply
+            </Button>
+          </div>
+        </div>
       </div>
-      
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="type">
-          <AccordionTrigger className="text-sm">Type</AccordionTrigger>
-          <AccordionContent>
-            <div className="flex flex-wrap gap-2">
+
+      {/* Filter Content */}
+      <div className="space-y-6 pt-4">
+        {/* Types Section */}
+        <FilterSection 
+          title="Type" 
+          onClear={() => handleClearSection('type')}
+          showClear={filters.type_id !== null}
+        >
+          <ScrollArea className="w-full whitespace-nowrap" type="scroll">
+            <div className="flex gap-2 px-4">
               {types.map((type) => (
                 <Button
                   key={type.id}
                   variant={filters.type_id === type.id ? "default" : "outline"}
-                  onClick={() => setFilters({ ...filters, type_id: filters.type_id === type.id ? null : type.id })}
+                  onClick={() => setFilters(prev => ({ 
+                    ...prev, 
+                    type_id: filters.type_id === type.id ? null : type.id 
+                  }))}
+                  className="flex-shrink-0 text-sm font-normal h-8"
+                  size="sm"
                 >
                   {type.name}
                 </Button>
               ))}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-      
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="city">
-          <AccordionTrigger className="text-sm">City</AccordionTrigger>
-          <AccordionContent>
-            <div className="flex flex-wrap gap-2">
+            <ScrollBar orientation="horizontal" className="mt-2" />
+          </ScrollArea>
+        </FilterSection>
+
+        {/* Cities Section */}
+        <FilterSection 
+          title="City" 
+          onClear={() => handleClearSection('city')}
+          showClear={filters.city_id !== null}
+        >
+          <ScrollArea className="w-full whitespace-nowrap" type="scroll">
+            <div className="flex gap-2 px-4">
               {cities.map((city) => (
                 <Button
                   key={city.id}
                   variant={filters.city_id === city.id ? "default" : "outline"}
-                  onClick={() => setFilters({ ...filters, city_id: filters.city_id === city.id ? null : city.id })}
+                  onClick={() => setFilters(prev => ({ 
+                    ...prev, 
+                    city_id: filters.city_id === city.id ? null : city.id 
+                  }))}
+                  className="flex-shrink-0 text-sm font-normal h-8"
+                  size="sm"
                 >
                   {city.name}
                 </Button>
               ))}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-      
-      <div className="space-y-2">
-        <Label>Price</Label>
-        <div className="flex space-x-2">
-          {[1, 2, 3].map((value) => (
+            <ScrollBar orientation="horizontal" className="mt-2" />
+          </ScrollArea>
+        </FilterSection>
+
+        {/* Price Section */}
+        <FilterSection 
+          title="Price Range" 
+          onClear={() => handleClearSection('price')}
+          showClear={filters.price !== null}
+        >
+          <div className="flex gap-2 px-4">
+            {[1, 2, 3].map((value) => (
+              <Button
+                key={value}
+                variant={filters.price === value ? "default" : "outline"}
+                onClick={() => setFilters(prev => ({ 
+                  ...prev, 
+                  price: filters.price === value ? null : value 
+                }))}
+                className="flex-shrink-0 text-sm font-normal h-8"
+                size="sm"
+              >
+                {'€'.repeat(value)}
+              </Button>
+            ))}
+          </div>
+        </FilterSection>
+
+        {/* Sort Section */}
+        <FilterSection 
+          title="Sort By" 
+          onClear={() => handleClearSection('sort')}
+          showClear={sortOption !== 'dateAdded'}
+        >
+          <div className="flex gap-2 px-4">
             <Button
-              key={value}
-              onClick={() => setFilters({ ...filters, price: filters.price === value ? null : value })}
-              variant={filters.price === value ? "default" : "outline"}
+              variant={sortOption === 'dateAdded' ? "default" : "outline"}
+              onClick={() => setSortOption('dateAdded')}
+              className="flex-shrink-0 text-sm font-normal h-8"
+              size="sm"
             >
-              {'€'.repeat(value)}
+              Most Recent
             </Button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="to-try-filter"
-          checked={filters.toTry === true}
-          onCheckedChange={(checked) => {
-            setFilters({ ...filters, toTry: checked ? true : null, rating: checked ? null : filters.rating });
-          }}
-        />
-        <Label htmlFor="to-try-filter">To Try</Label>
-      </div>
-      
-      {filters.toTry !== true && (
-        <div className="space-y-2">
-          <Label>
-            Minimum Rating: {filters.rating !== null ? (filters.rating === 10 ? '10' : filters.rating.toFixed(1)) : 'Any'}/10
-          </Label>
-          <Slider
-            min={0}
-            max={10}
-            step={0.5}
-            value={[filters.rating !== null ? filters.rating : 0]}
-            onValueChange={(value) => setFilters({ ...filters, rating: value[0] === 0 ? null : value[0], toTry: false })}
-          />
-        </div>
-      )}
-      
-      <div className="space-y-2">
-        <Label>Sort By</Label>
-        <div className="flex space-x-2">
-          <Button
-            variant={sortOption === 'dateAdded' ? 'default' : 'outline'}
-            onClick={() => setSortOption('dateAdded')}
-          >
-            Date Added
-          </Button>
-          <Button
-            variant={sortOption === 'name' ? 'default' : 'outline'}
-            onClick={() => setSortOption('name')}
-          >
-            Name
-          </Button>
-          <Button
-            variant={sortOption === 'rating' ? 'default' : 'outline'}
-            onClick={() => setSortOption('rating')}
-          >
-            Rating
-          </Button>
-        </div>
-      </div>
-      
-      <div className="flex justify-between mt-6">
-        <Button variant="outline" onClick={() => {
-          setFilters({
-            name: '',
-            type_id: null,
-            city_id: null,
-            toTry: null,
-            rating: null,
-            price: null
-          });
-          setSortOption('dateAdded');
-        }}>
-          Clear Filters
-        </Button>
-        <Button onClick={handleApply}>
-          Apply Filters
-        </Button>
+            <Button
+              variant={sortOption === 'rating' ? "default" : "outline"}
+              onClick={() => setSortOption('rating')}
+              className="flex-shrink-0 text-sm font-normal h-8"
+              size="sm"
+            >
+              Top Rated
+            </Button>
+          </div>
+        </FilterSection>
       </div>
     </div>
   );
