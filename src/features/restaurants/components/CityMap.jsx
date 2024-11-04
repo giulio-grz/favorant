@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,7 +29,7 @@ const InfoBox = ({ restaurant, onRestaurantClick }) => (
         <Badge variant="secondary">To Try</Badge>
       ) : restaurant.user_rating ? (
         <div className="flex items-center">
-          <StarIcon className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
+          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
           <span className="text-sm font-medium">
             {restaurant.user_rating.toFixed(1)}
           </span>
@@ -38,6 +38,17 @@ const InfoBox = ({ restaurant, onRestaurantClick }) => (
     </div>
   </div>
 );
+
+const MapWithEvents = ({ onMapClick }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    map.on('click', onMapClick);
+    return () => {
+      map.off('click', onMapClick);
+    };
+  }, [map, onMapClick]);
+  return null;
+};
 
 const MapDialog = ({ isOpen, onClose, children, title }) => (
   <Dialog open={isOpen} onOpenChange={onClose}>
@@ -107,10 +118,6 @@ const CityMap = ({
       }));
   }, [restaurantsByCity]);
 
-  if (availableCities.length === 0) {
-    return null;
-  }
-
   const handleCitySelect = (cityId) => {
     setSelectedCity(cityId);
     setIsMapOpen(true);
@@ -122,6 +129,20 @@ const CityMap = ({
     setSelectedMarker(restaurant);
   };
 
+  const handleMapClick = () => {
+    setSelectedMarker(null);
+  };
+
+  const handleClose = () => {
+    setIsMapOpen(false);
+    setSelectedCity(null);
+    setSelectedMarker(null);
+  };
+
+  if (availableCities.length === 0) {
+    return null;
+  }
+
   const selectedCityName = restaurantsByCity[selectedCity]?.cityName;
 
   return (
@@ -131,7 +152,7 @@ const CityMap = ({
           {availableCities.map((city) => (
             <Button
               key={city.id}
-              variant={selectedCity === city.id ? "default" : "outline"}
+              variant={selectedCity === city.id && isMapOpen ? "default" : "outline"}
               onClick={() => handleCitySelect(city.id)}
               className="flex-shrink-0 whitespace-nowrap"
               size="sm"
@@ -146,10 +167,7 @@ const CityMap = ({
 
       <MapDialog 
         isOpen={isMapOpen} 
-        onClose={() => {
-          setIsMapOpen(false);
-          setSelectedMarker(null);
-        }}
+        onClose={handleClose}
         title={selectedCityName}
       >
         <div className="relative flex-1 h-[calc(90vh-60px)]">
@@ -176,30 +194,16 @@ const CityMap = ({
                   }}
                 />
             ))}
+            <MapWithEvents onMapClick={handleMapClick} />
           </MapContainer>
           {selectedMarker && (
-          <div className="absolute bottom-4 left-4 right-4 mx-auto max-w-md z-[1000]">
-            <div 
-              onClick={() => onRestaurantClick(selectedMarker.id)}
-              className="bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border cursor-pointer hover:bg-accent transition-colors"
-            >
-              <h3 className="font-medium mb-1">{selectedMarker.name}</h3>
-              <p className="text-sm text-muted-foreground mb-2">{selectedMarker.address}</p>
-              <div className="flex items-center gap-2">
-                {selectedMarker.is_to_try ? (
-                  <Badge variant="secondary">To Try</Badge>
-                ) : selectedMarker.user_rating ? (
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-                    <span className="text-sm font-medium">
-                      {selectedMarker.user_rating.toFixed(1)}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+            <div className="absolute bottom-4 left-4 right-4 mx-auto max-w-md z-[1000]">
+              <InfoBox 
+                restaurant={selectedMarker}
+                onRestaurantClick={onRestaurantClick}
+              />
             </div>
-          </div>
-        )}
+          )}
         </div>
       </MapDialog>
     </div>

@@ -15,13 +15,11 @@ import { Euro, MapPin, UtensilsCrossed, Star, User } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import CityMap from './components/CityMap';
 
-// formatRating function
 const formatRating = (rating) => {
   return rating === 10 ? "10" : rating.toFixed(1);
 };
 
-// useRestaurants hook for handling restaurant data
-const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, searchQuery) => {
+const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,7 +42,6 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
       setLoading(true);
       setError(null);
 
-      // First get bookmarks and reviews for this user
       const [bookmarksResponse, reviewsResponse] = await Promise.all([
         supabase
           .from('bookmarks')
@@ -60,7 +57,6 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
       if (bookmarksResponse.error) throw bookmarksResponse.error;
       if (reviewsResponse.error) throw reviewsResponse.error;
 
-      // Get the IDs of all restaurants this user has interacted with
       const restaurantIds = [
         ...new Set([
           ...(bookmarksResponse.data || []).map(b => b.restaurant_id),
@@ -76,7 +72,6 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
         return;
       }
 
-      // Now fetch the restaurants with their reviews
       const { data: restaurantsData, error: restaurantsError } = await supabase
       .from('restaurants')
       .select(`
@@ -98,7 +93,6 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
 
       let filteredData = restaurantsData || [];
 
-      // Apply filters
       if (filters.name) {
         filteredData = filteredData.filter(r => 
           r.name.toLowerCase().includes(filters.name.toLowerCase())
@@ -114,24 +108,11 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
         filteredData = filteredData.filter(r => r.price === filters.price);
       }
 
-      // Apply search
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        filteredData = filteredData.filter(r => 
-          r.name.toLowerCase().includes(query) ||
-          r.restaurant_types?.name?.toLowerCase().includes(query) ||
-          r.cities?.name?.toLowerCase().includes(query)
-        );
-      }
-
-      // Enrich data with user-specific information
       filteredData = filteredData.map(restaurant => {
-        // Get the reviews for the viewed user
         const userReview = restaurant.restaurant_reviews?.find(r => 
           r.user_id === userId
         );
 
-        // Get bookmarks for the viewed user
         const userBookmark = restaurant.bookmarks?.find(b => 
           b.user_id === userId
         );
@@ -143,7 +124,6 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
         };
       });
 
-      // Sort data
       switch (sortOption) {
         case 'name':
           filteredData.sort((a, b) => a.name.localeCompare(b.name));
@@ -172,7 +152,7 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption, se
     } finally {
       setLoading(false);
     }
-  }, [userId, isViewingOwnRestaurants, filters, sortOption, searchQuery, retryAttempt]);
+  }, [userId, isViewingOwnRestaurants, filters, sortOption, retryAttempt]);
 
   useEffect(() => {
     fetchRestaurants();
@@ -212,8 +192,7 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     viewingUserId || user.id,
     isViewingOwnRestaurants,
     filters,
-    sortOption,
-    searchQuery
+    sortOption
   );
 
   useEffect(() => {
@@ -269,6 +248,10 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
     }
   }, [navigate, viewingUserId, user.id]);
 
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+  }, []);
+
   const filteredRestaurants = restaurants.filter(restaurant => {
     const matchesTab = 
       (activeTab === 'all') || 
@@ -281,15 +264,6 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
       restaurant.cities?.name?.toLowerCase().includes(searchQuery.toLowerCase());
   
     return matchesTab && matchesSearch;
-  }).map(restaurant => {
-    const userSpecificReview = restaurant.restaurant_reviews?.find(review => 
-      review.user_id === (viewingUserId || user.id)
-    );
-  
-    return {
-      ...restaurant,
-      user_rating: userSpecificReview?.rating
-    };
   });
 
   if (loading || loadingStates.view) {
@@ -303,15 +277,15 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-        {viewingUser && (
+      {viewingUser && (
           <div className="flex items-center space-x-3">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback>
+            <Avatar className="h-14 w-14">
+              <AvatarFallback className="text-xl">
                 {viewingUser.username?.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-sm font-medium">{viewingUser.username}</h2>
+              <h2 className="text-base font-semibold">{viewingUser.username}</h2>
               <p className="text-xs text-muted-foreground">{viewingUser.email}</p>
             </div>
           </div>
@@ -326,7 +300,7 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
         </Tabs>
         
         <div className="w-full sm:w-64">
-          <SearchBar onSearch={setSearchQuery} />
+          <SearchBar onSearch={handleSearch} />
         </div>
       </div>
 

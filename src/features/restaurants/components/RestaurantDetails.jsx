@@ -369,7 +369,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
       {/* Website */}
       {restaurant?.website && (
-        <div className="flex items-center space-x-2 text-sm mb-10">
+        <div className="flex items-center space-x-2 text-sm">
           <a 
             href={restaurant.website}
             target="_blank"
@@ -383,7 +383,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       )}
 
       {/* Reviews Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10 mb-8">
         {/* Overall Rating Card */}
         <Card>
           <CardHeader>
