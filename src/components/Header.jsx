@@ -5,7 +5,6 @@ import { PlusCircle, Filter, Settings, Shield, User, LogOut, Activity, Search } 
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
-import UserSearch from './UserSearch';
 import { signOut } from '../supabaseClient';
 import logo from '../assets/favorant-logo.svg';
 
@@ -17,11 +16,6 @@ const Header = ({ user, setUser }) => {
     await signOut();
     setUser(null);
     navigate('/auth');
-  };
-
-  const handleUserSelect = (selectedUser) => {
-    navigate(`/profile/${selectedUser.id}`);
-    setIsSheetOpen(false);
   };
 
   return (
@@ -39,11 +33,14 @@ const Header = ({ user, setUser }) => {
         
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center space-x-4">
-          <UserSearch onUserSelect={handleUserSelect} currentUserId={user.id}>
-            <Button size="sm" variant="outline">
-              Search Users
-            </Button>
-          </UserSearch>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => navigate('/search')}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            Search Users
+          </Button>
           <Button onClick={() => navigate('/feed')} size="sm" variant="outline">
             <Activity className="mr-2 h-4 w-4" />
             Activity
@@ -108,19 +105,18 @@ const Header = ({ user, setUser }) => {
                     <p className="text-sm font-medium">{user.profile?.username || user.email}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
-                  <UserSearch 
-                    onUserSelect={handleUserSelect}
-                    currentUserId={user.id}
-                  >
                     <Button 
                       variant="outline" 
                       className="w-full justify-start" 
                       size="sm"
+                      onClick={() => {
+                        navigate('/search');
+                        setIsSheetOpen(false);
+                      }}
                     >
                       <Search className="mr-2 h-4 w-4" />
                       Search Users
                     </Button>
-                  </UserSearch>
                 </div>
                 <nav className="flex-grow overflow-y-auto">
                   <ul className="space-y-2 p-4">
