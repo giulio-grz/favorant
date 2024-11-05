@@ -86,7 +86,7 @@ const RestaurantFilter = ({
     <div className="min-h-screen bg-background flex flex-col">
       <div className="sticky top-0 z-10 bg-background">
         <div className="px-4">
-          <div className="max-w-2xl mx-auto w-full">
+          <div className="max-w-[900px] mx-auto w-full">
             <div className="py-4">
               <Button 
                 variant="ghost" 
@@ -135,7 +135,7 @@ const RestaurantFilter = ({
 
       {/* Filter Content */}
       <div className="flex-1 px-4">
-        <div className="max-w-2xl mx-auto w-full space-y-6 pb-20">
+        <div className="max-w-[900px] mx-auto w-full space-y-6 pb-20">
           {/* Types Section */}
           <FilterSection title="Type">
             <Select
@@ -228,7 +228,7 @@ const RestaurantFilter = ({
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
-        <div className="max-w-2xl mx-auto w-full flex gap-3">
+        <div className="max-w-[900px] mx-auto w-full flex gap-3">
           <Button 
             variant="outline"
             className="flex-1"

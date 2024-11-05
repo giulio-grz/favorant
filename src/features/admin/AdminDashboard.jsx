@@ -445,7 +445,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="p-4">
+    <div>
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       
       <AlertDialog open={alert.show} onOpenChange={() => setAlert({ ...alert, show: false })}>
