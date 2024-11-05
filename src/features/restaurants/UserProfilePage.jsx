@@ -263,7 +263,7 @@ const UserProfilePage = ({ currentUser }) => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
+    <div>
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-3">
@@ -332,7 +332,7 @@ const UserProfilePage = ({ currentUser }) => {
       <div className="space-y-6">
         <h2 className="text-lg font-semibold">Recent Activity</h2>
         
-        <div className="divide-y">
+        <div>
           {recentActivity.map((activity, index) => (
             <div 
               key={index}

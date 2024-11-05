@@ -90,7 +90,7 @@ const UserSettings = ({ user, setUser }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto p-4">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"

@@ -95,11 +95,11 @@ const UserSearch = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background">
         {/* Back button row */}
-        <div className="px-4 py-6">
+        <div className="py-6">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -110,7 +110,7 @@ const UserSearch = ({ user }) => {
           </Button>
         </div>
         {/* Search bar row */}
-        <div className="px-4 pb-4">
+        <div className="pb-4">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -125,7 +125,7 @@ const UserSearch = ({ user }) => {
       </div>
 
       {/* Results */}
-      <div className="px-4 mt-4">
+      <div className="mt-4">
         {loading ? (
           <div className="text-center text-muted-foreground py-8">
             Searching...

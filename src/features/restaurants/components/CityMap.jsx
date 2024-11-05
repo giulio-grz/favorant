@@ -57,7 +57,6 @@ const MapDialog = ({ isOpen, onClose, children, title }) => (
       "gap-0 overflow-hidden"
     )}>
       <DialogHeader className="px-4 py-2 border-b flex justify-between items-center h-12">
-        <DialogTitle>Restaurants in {title}</DialogTitle>
       </DialogHeader>
       {children}
     </DialogContent>

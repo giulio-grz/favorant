@@ -300,7 +300,7 @@ const AddEditRestaurant = ({
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header with Progress */}
       <div className="fixed top-0 left-0 right-0 z-10 bg-background border-b">
-        <div className="max-w-[500px] mx-auto px-4 w-full">
+        <div className="max-w-[900px] mx-auto px-4 w-full">
           <div className="py-4">
             <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
               <span>Step {step} of {totalSteps}</span>
@@ -315,7 +315,7 @@ const AddEditRestaurant = ({
 
       {/* Main Content */}
       <main className="flex-1 pt-6 pb-20">
-        <div className="max-w-[500px] mx-auto px-4 w-full">
+        <div className="max-w-[900px] mx-auto px-4 w-full">
           {/* Step 1: Search */}
           {step === 1 && (
             <div className="space-y-4">
@@ -570,7 +570,7 @@ const AddEditRestaurant = ({
                   <div className="flex flex-col items-start text-left">
                     <span className="font-medium">Add Review</span>
                     <span className="text-sm text-muted-foreground mt-1 break-words">
-                      I've visited this restaurant and want to add a review
+                      Add review to this restautant
                     </span>
                   </div>
                 </Button>
@@ -582,7 +582,7 @@ const AddEditRestaurant = ({
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
-        <div className="max-w-[500px] mx-auto w-full">
+        <div className="max-w-[900px] mx-auto w-full">
           <div className="flex gap-3">
             <Button
               variant="outline"
