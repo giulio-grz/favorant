@@ -37,122 +37,106 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) =>
       setHasResults(false);
       return;
     }
-
+  
     try {
       setLoading(true);
       setError(null);
-
-      const [bookmarksResponse, reviewsResponse] = await Promise.all([
-        supabase
-          .from('bookmarks')
-          .select('restaurant_id, type')
-          .eq('user_id', userId),
-        
-        supabase
-          .from('restaurant_reviews')
-          .select('restaurant_id, rating')
-          .eq('user_id', userId)
-      ]);
-
-      if (bookmarksResponse.error) throw bookmarksResponse.error;
-      if (reviewsResponse.error) throw reviewsResponse.error;
-
-      const restaurantIds = [
-        ...new Set([
-          ...(bookmarksResponse.data || []).map(b => b.restaurant_id),
-          ...(reviewsResponse.data || []).map(r => r.restaurant_id)
-        ])
-      ];
-
-      if (restaurantIds.length === 0 && !isViewingOwnRestaurants) {
-        setRestaurants([]);
-        setTotalCount(0);
-        setHasResults(false);
-        setError(null);
-        return;
-      }
-
+  
+      // First get all approved restaurants
       const { data: restaurantsData, error: restaurantsError } = await supabase
-      .from('restaurants')
-      .select(`
-        *,
-        cities (*),
-        restaurant_types (*),
-        restaurant_reviews!restaurant_reviews_restaurant_id_fkey (
-          rating,
-          user_id
-        ),
-        bookmarks!bookmarks_restaurant_id_fkey (
-          type,
-          user_id
-        )
-      `)
-      .in(isViewingOwnRestaurants ? 'created_by' : 'id', isViewingOwnRestaurants ? [userId] : restaurantIds);
-
+        .from('restaurants')
+        .select(`
+          *,
+          cities (*),
+          restaurant_types (*),
+          restaurant_reviews!restaurant_reviews_restaurant_id_fkey (
+            rating,
+            user_id
+          ),
+          bookmarks!bookmarks_restaurant_id_fkey (
+            type,
+            user_id
+          )
+        `)
+        .eq('status', 'approved');
+  
       if (restaurantsError) throw restaurantsError;
-
-      let filteredData = restaurantsData || [];
-
-      if (filters.name) {
-        filteredData = filteredData.filter(r => 
-          r.name.toLowerCase().includes(filters.name.toLowerCase())
+  
+      let filteredData = restaurantsData;
+      if (!isViewingOwnRestaurants) {
+        // Viewing someone else's list - filter by their interactions
+        filteredData = restaurantsData.filter(restaurant => 
+          restaurant.restaurant_reviews.some(r => r.user_id === userId) ||
+          restaurant.bookmarks.some(b => b.user_id === userId)
+        );
+      } else {
+        // Viewing own list - show all restaurants with my interactions
+        filteredData = restaurantsData.filter(restaurant =>
+          restaurant.restaurant_reviews.some(r => r.user_id === userId) ||
+          restaurant.bookmarks.some(b => b.user_id === userId) ||
+          restaurant.created_by === userId
         );
       }
-      if (filters.type_id) {
-        filteredData = filteredData.filter(r => r.type_id === filters.type_id);
-      }
-      if (filters.city_id) {
-        filteredData = filteredData.filter(r => r.city_id === filters.city_id);
-      }
-      if (filters.price) {
-        filteredData = filteredData.filter(r => r.price === filters.price);
-      }
-
-      filteredData = filteredData.map(restaurant => {
+  
+      let formattedRestaurants = filteredData.map(restaurant => {
         const userReview = restaurant.restaurant_reviews?.find(r => 
           r.user_id === userId
         );
-
+  
         const userBookmark = restaurant.bookmarks?.find(b => 
           b.user_id === userId
         );
-
+  
         return {
           ...restaurant,
           user_rating: userReview?.rating,
           is_to_try: userBookmark?.type === 'to_try'
         };
       });
-
+  
+      // Apply filters
+      if (filters.name) {
+        formattedRestaurants = formattedRestaurants.filter(r => 
+          r.name.toLowerCase().includes(filters.name.toLowerCase())
+        );
+      }
+      if (filters.type_id) {
+        formattedRestaurants = formattedRestaurants.filter(r => r.type_id === filters.type_id);
+      }
+      if (filters.city_id) {
+        formattedRestaurants = formattedRestaurants.filter(r => r.city_id === filters.city_id);
+      }
+      if (filters.price) {
+        formattedRestaurants = formattedRestaurants.filter(r => r.price === filters.price);
+      }
+  
       switch (sortOption) {
         case 'name':
-          filteredData.sort((a, b) => a.name.localeCompare(b.name));
+          formattedRestaurants.sort((a, b) => a.name.localeCompare(b.name));
           break;
         case 'rating':
-          filteredData.sort((a, b) => (b.user_rating || 0) - (a.user_rating || 0));
+          formattedRestaurants.sort((a, b) => (b.user_rating || 0) - (a.user_rating || 0));
           break;
         case 'dateAdded':
         default:
-          filteredData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          formattedRestaurants.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
-
-      setRestaurants(filteredData);
-      setTotalCount(filteredData.length);
-      setHasResults(filteredData.length > 0);
+  
+      setRestaurants(formattedRestaurants);
+      setTotalCount(formattedRestaurants.length);
+      setHasResults(formattedRestaurants.length > 0);
       setError(null);
-      setRetryAttempt(0);
+  
     } catch (error) {
       console.error('Error fetching restaurants:', error);
       setError(error.message);
-      
-      if (retryAttempt < MAX_RETRIES && navigator.onLine) {
-        setRetryAttempt(prev => prev + 1);
-        setTimeout(fetchRestaurants, Math.pow(2, retryAttempt) * 1000);
-      }
+      setRestaurants([]);
+      setTotalCount(0);
+      setHasResults(false);
     } finally {
       setLoading(false);
     }
-  }, [userId, isViewingOwnRestaurants, filters, sortOption, retryAttempt]);
+  }, [userId, isViewingOwnRestaurants, filters, sortOption]);
 
   useEffect(() => {
     fetchRestaurants();

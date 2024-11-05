@@ -1,5 +1,4 @@
-// src/components/Header.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { PlusCircle, Filter, Settings, Shield, User, LogOut, Activity, Search } from 'lucide-react';
@@ -12,6 +11,7 @@ import logo from '../assets/favorant-logo.svg';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -21,9 +21,7 @@ const Header = ({ user, setUser }) => {
 
   const handleUserSelect = (selectedUser) => {
     navigate(`/profile/${selectedUser.id}`);
-    // Close sheet if it's open
-    const sheetCloseButton = document.querySelector('[data-radix-collection-item]');
-    if (sheetCloseButton) sheetCloseButton.click();
+    setIsSheetOpen(false);
   };
 
   return (
@@ -94,7 +92,7 @@ const Header = ({ user, setUser }) => {
 
         {/* Mobile Menu */}
         <div className="md:hidden">
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" className="p-0">
                 <Avatar className="h-8 w-8">
@@ -111,7 +109,7 @@ const Header = ({ user, setUser }) => {
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
                   <UserSearch 
-                    onUserSelect={handleUserSelect} 
+                    onUserSelect={handleUserSelect}
                     currentUserId={user.id}
                   >
                     <Button 
@@ -130,7 +128,10 @@ const Header = ({ user, setUser }) => {
                       <Button 
                         variant="ghost" 
                         className="w-full justify-start" 
-                        onClick={() => navigate('/feed')}
+                        onClick={() => {
+                          navigate('/feed');
+                          setIsSheetOpen(false);
+                        }}
                       >
                         <Activity className="mr-2 h-4 w-4" />
                         Activity Feed
@@ -140,7 +141,10 @@ const Header = ({ user, setUser }) => {
                       <Button 
                         variant="ghost" 
                         className="w-full justify-start" 
-                        onClick={() => navigate(`/profile/${user.id}`)}
+                        onClick={() => {
+                          navigate(`/profile/${user.id}`);
+                          setIsSheetOpen(false);
+                        }}
                       >
                         <User className="mr-2 h-4 w-4" />
                         Profile
@@ -150,7 +154,10 @@ const Header = ({ user, setUser }) => {
                       <Button 
                         variant="ghost" 
                         className="w-full justify-start" 
-                        onClick={() => navigate('/settings')}
+                        onClick={() => {
+                          navigate('/settings');
+                          setIsSheetOpen(false);
+                        }}
                       >
                         <Settings className="mr-2 h-4 w-4" />
                         Settings
@@ -161,7 +168,10 @@ const Header = ({ user, setUser }) => {
                         <Button 
                           variant="ghost" 
                           className="w-full justify-start" 
-                          onClick={() => navigate('/admin')}
+                          onClick={() => {
+                            navigate('/admin');
+                            setIsSheetOpen(false);
+                          }}
                         >
                           <Shield className="mr-2 h-4 w-4" />
                           Admin
@@ -174,7 +184,10 @@ const Header = ({ user, setUser }) => {
                   <Button 
                     variant="ghost" 
                     className="w-full justify-start text-red-500 hover:text-red-500"
-                    onClick={handleSignOut}
+                    onClick={() => {
+                      handleSignOut();
+                      setIsSheetOpen(false);
+                    }}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
