@@ -1,5 +1,6 @@
-import { Badge } from "@/components/ui/badge";
 import React from 'react';
+import { Badge } from "@/components/ui/badge";
+import { formatRating } from "@/lib/utils";
 
 const RestaurantList = ({ restaurants, onRestaurantClick }) => {
   return (
@@ -7,11 +8,11 @@ const RestaurantList = ({ restaurants, onRestaurantClick }) => {
       {restaurants.map((restaurant) => (
         <div 
           key={restaurant.id} 
-          className="cursor-pointer hover:bg-slate-50 transition-all"
+          className="cursor-pointer"
           onClick={() => onRestaurantClick(restaurant.id)}
         >
-          <div className="flex items-start p-4 relative">
-            <div className="h-16 w-16 bg-slate-100 rounded-lg flex items-center justify-center text-xl font-semibold text-slate-500 relative">
+          <div className="flex items-start pb-4 pt-4 relative">
+            <div className="h-16 w-16 bg-slate-100 hover:bg-slate-200 transition-colors rounded-lg flex items-center justify-center text-xl font-semibold text-slate-500 relative">
               {restaurant.name.substring(0, 2).toUpperCase()}
               {restaurant.is_to_try && (
                 <div className="absolute -bottom-2 -right-2">
@@ -22,20 +23,15 @@ const RestaurantList = ({ restaurants, onRestaurantClick }) => {
               )}
               {!restaurant.is_to_try && restaurant.user_rating && (
                 <div className="absolute -bottom-2 -right-2 bg-white rounded-full px-2 py-0.5 text-sm border">
-                  {restaurant.user_rating.toFixed(1)}
+                  {formatRating(restaurant.user_rating)}
                 </div>
               )}
             </div>
             <div className="ml-4 flex-1">
               <h3 className="text-lg font-semibold">{restaurant.name}</h3>
               <div className="text-sm text-gray-500 space-y-0.5">
-                {restaurant.restaurant_types?.name && (
-                  <div>{restaurant.restaurant_types.name}</div>
-                )}
-                <div>
-                  {restaurant.address}
-                  {restaurant.cities?.name && `, ${restaurant.cities.name}`}
-                </div>
+                <div>{restaurant.restaurant_types?.name}</div>
+                <div>{restaurant.cities?.name}</div>
               </div>
             </div>
             <div className="text-sm text-gray-400">
@@ -44,6 +40,12 @@ const RestaurantList = ({ restaurants, onRestaurantClick }) => {
           </div>
         </div>
       ))}
+
+      {restaurants.length === 0 && (
+        <div className="text-center py-8 text-sm text-muted-foreground">
+          No restaurants found
+        </div>
+      )}
     </div>
   );
 };

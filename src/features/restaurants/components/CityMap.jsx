@@ -18,23 +18,34 @@ const customIcon = new L.Icon({
 });
 
 const InfoBox = ({ restaurant, onRestaurantClick }) => (
-  <div 
+  <div
     onClick={() => onRestaurantClick(restaurant.id)}
     className="bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border cursor-pointer hover:bg-accent transition-colors"
   >
-    <h3 className="font-medium mb-1">{restaurant.name}</h3>
-    <p className="text-sm text-muted-foreground mb-2">{restaurant.address}</p>
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between mb-2">
+      <h3 className="font-sm font-medium">{restaurant.name}</h3>
       {restaurant.is_to_try ? (
         <Badge variant="secondary">To Try</Badge>
       ) : restaurant.user_rating ? (
         <div className="flex items-center">
           <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-          <span className="text-sm font-medium">
+          <span className="text-xs font-medium">
             {restaurant.user_rating.toFixed(1)}
           </span>
         </div>
       ) : null}
+    </div>
+    <p className="text-xs text-muted-foreground mb-2">{restaurant.address}</p>
+    <div className="flex items-center gap-2">
+      {restaurant.restaurant_types?.name && (
+        <span className="text-xs text-muted-foreground">{restaurant.restaurant_types.name}</span>
+      )}
+      {restaurant.restaurant_types?.name && restaurant.price && (
+        <span className="text-xs text-muted-foreground">·</span>
+      )}
+      {restaurant.price && (
+        <span className="text-xs text-muted-foreground">{'€'.repeat(restaurant.price)}</span>
+      )}
     </div>
   </div>
 );

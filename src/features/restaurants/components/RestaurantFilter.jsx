@@ -86,7 +86,7 @@ const RestaurantFilter = ({
     <div className="min-h-screen bg-background flex flex-col">
       <div className="sticky top-0 z-10 bg-background">
         <div className="px-4">
-          <div className="max-w-[900px] mx-auto w-full">
+          <div className="max-w-[1000px] mx-auto w-full">
             <div className="py-4">
               <Button 
                 variant="ghost" 
@@ -134,8 +134,8 @@ const RestaurantFilter = ({
       </div>
 
       {/* Filter Content */}
-      <div className="flex-1 px-4">
-        <div className="max-w-[900px] mx-auto w-full space-y-6 pb-20">
+      <div className="flex-1">
+        <div className="max-w-[1000px] mx-auto w-full space-y-6 pb-20">
           {/* Types Section */}
           <FilterSection title="Type">
             <Select
