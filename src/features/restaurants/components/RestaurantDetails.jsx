@@ -369,7 +369,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
 
       {/* Website */}
       {restaurant?.website && (
-        <div className="flex items-center space-x-2 text-sm">
+        <div className="flex items-center space-x-2 text-sm border-b pb-8 mb-8">
           <a 
             href={restaurant.website}
             target="_blank"
@@ -383,142 +383,112 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       )}
 
       {/* Reviews Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10 mb-8">
-        {/* Overall Rating Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Overall Rating</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {aggregateRating > 0 ? (
-              <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10 border-b pb-8 mb-8">
+        {/* Overall Rating */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Overall Rating</h2>
+          {aggregateRating > 0 ? (
+            <div>
+              <div className="text-3xl font-bold mb-2 flex items-center">
+                {formatRating(aggregateRating)}
+                <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
+              </div>
+              <div className="text-sm text-gray-500">
+                Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
+              </div>
+            </div>
+          ) : (
+            <div className="text-gray-500">No ratings yet</div>
+          )}
+        </div>
+
+        {/* Rating Section */}
+        {((!viewingUserId || viewingUserId === user.id) || displayedReview) && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">
+                {displayedReview ? (
+                  viewingUserId && viewingUserId !== user.id ? 
+                    `${displayedReview.username}'s Rating` : 
+                    "My Rating"
+                ) : (
+                  "Add Review"
+                )}
+              </h2>
+              {(!viewingUserId || viewingUserId === user.id) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRating(displayedReview?.rating || 5);
+                    setIsReviewDialogOpen(true);
+                  }}
+                >
+                  {displayedReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+            {displayedReview ? (
+              <>
                 <div className="text-3xl font-bold mb-2 flex items-center">
-                  {formatRating(aggregateRating)}
+                  {formatRating(displayedReview.rating)}
                   <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
                 </div>
                 <div className="text-sm text-gray-500">
-                  Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
+                  Added {formatDate(displayedReview.created_at)}
                 </div>
-              </div>
-            ) : (
-              <div className="text-gray-500">No ratings yet</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Rating Card - Only show for own reviews or when viewing others' reviews */}
-        {((!viewingUserId || viewingUserId === user.id) || displayedReview) && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg font-semibold">
-                  {displayedReview ? (
-                    viewingUserId && viewingUserId !== user.id ? 
-                      `${displayedReview.username}'s Rating` : 
-                      "My Rating"
-                  ) : (
-                    "Add Review"
-                  )}
-                </CardTitle>
-                {(!viewingUserId || viewingUserId === user.id) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setRating(displayedReview?.rating || 5);
-                      setIsReviewDialogOpen(true);
-                    }}
-                  >
-                    {displayedReview ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {displayedReview ? (
-                <>
-                  <div className="text-3xl font-bold mb-2 flex items-center">
-                    {formatRating(displayedReview.rating)}
-                    <Star className="h-5 w-5 ml-2 text-yellow-400 fill-current" />
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Added {formatDate(displayedReview.created_at)}
-                  </div>
-                </>
-              ) : (!viewingUserId || viewingUserId === user.id) ? (
-                <div className="text-gray-500">Click to add your rating</div>
-              ) : null}
-            </CardContent>
-          </Card>
+              </>
+            ) : (!viewingUserId || viewingUserId === user.id) ? (
+              <div className="text-gray-500">Click to add your rating</div>
+            ) : null}
+          </div>
         )}
       </div>
 
       {/* Map Section */}
-      {restaurant?.latitude && restaurant?.longitude ? (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Location</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RestaurantMap 
-              address={restaurant.address}
-              city={restaurant.cities?.name}
-              latitude={restaurant.latitude}
-              longitude={restaurant.longitude}
-            />
-          </CardContent>
-        </Card>
-      ) : restaurant?.status === 'pending' ? (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Location</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
-              <div className="text-center text-muted-foreground">
-                <p>Location will be available after admin approval</p>
-              </div>
+      <div className="border-b pb-8 mb-8">
+        <h2 className="text-lg font-semibold mb-4">Location</h2>
+        {restaurant?.latitude && restaurant?.longitude ? (
+          <RestaurantMap 
+            address={restaurant.address}
+            city={restaurant.cities?.name}
+            latitude={restaurant.latitude}
+            longitude={restaurant.longitude}
+          />
+        ) : restaurant?.status === 'pending' ? (
+          <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
+            <div className="text-center text-muted-foreground">
+              <p>Location will be available after admin approval</p>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Location</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
-              <div className="text-center text-muted-foreground">
-                <p>Location not available</p>
-              </div>
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
+            <div className="text-center text-muted-foreground">
+              <p>Location not available</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Social Feed Section */}
       {userHasRestaurant && (!viewingUserId || viewingUserId === user.id) && 
-        <SocialFeed 
-          restaurantId={restaurant.id} 
-          userId={user.id}
-          wrapper={(content) => content && (
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Social Feed</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <SocialFeed 
+            restaurantId={restaurant.id} 
+            userId={user.id}
+            wrapper={(content) => content && (
+              <div className="border-b pb-8 mb-8">
+                <h2 className="text-lg font-semibold mb-4">Social Feed</h2>
                 {content}
-              </CardContent>
-            </Card>
-          )}
-        />
+              </div>
+            )}
+          />
       }
 
       {/* Notes Section */}
       {(!viewingUserId || viewingUserId === user.id || displayedNote) && (
-        <Card className="mb-8">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Notes</CardTitle>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Notes</h2>
             {(!viewingUserId || viewingUserId === user.id) && (
               <div className="flex items-center gap-2">
                 {displayedNote ? (
@@ -562,43 +532,41 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
                 )}
               </div>
             )}
-          </CardHeader>
-          <CardContent>
-            {editingNote ? (
-              <div className="space-y-4">
-                <Textarea
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  className="min-h-[100px]"
-                  placeholder="Write your note here..."
-                />
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingNote(false);
-                      setNoteContent(displayedNote?.note || '');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleNoteSave}>Save</Button>
-                </div>
+          </div>
+          {editingNote ? (
+            <div className="space-y-4">
+              <Textarea
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                className="min-h-[100px]"
+                placeholder="Write your note here..."
+              />
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingNote(false);
+                    setNoteContent(displayedNote?.note || '');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleNoteSave}>Save</Button>
               </div>
-            ) : displayedNote ? (
-              <div>
-                <p className="whitespace-pre-wrap">{displayedNote.note}</p>
-                <p className="text-sm text-gray-500 mt-4">
-                  Last updated: {formatDate(displayedNote.created_at)}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center text-muted-foreground py-8">
-                No notes yet. Click 'Add Note' to create one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ) : displayedNote ? (
+            <div>
+              <p className="whitespace-pre-wrap">{displayedNote.note}</p>
+              <p className="text-sm text-gray-500 mt-4">
+                Last updated: {formatDate(displayedNote.created_at)}
+              </p>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              No notes yet. Click 'Add Note' to create one.
+            </div>
+          )}
+        </div>
       )}
 
       {/* Import Dialog */}

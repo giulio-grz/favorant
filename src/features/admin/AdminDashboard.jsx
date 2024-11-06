@@ -477,7 +477,7 @@ const AdminDashboard = () => {
             value={filters.status}
             onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] h-10">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -489,83 +489,85 @@ const AdminDashboard = () => {
         </div>
 
         <TabsContent value="restaurants">
-          <h2 className="text-xl font-semibold mb-2">Restaurants</h2>
-          <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Postal Code</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>Website</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-            <TableBody>
-              {filteredEntities(restaurants).map((restaurant) => (
-                <TableRow key={restaurant.id}>
-                <TableCell>{restaurant.name}</TableCell>
-                <TableCell>{restaurant.address}</TableCell>
-                <TableCell>{restaurant.postal_code}</TableCell>
-                <TableCell>{restaurant.cities?.name}</TableCell>
-                <TableCell>
-                  {restaurant.website ? (
-                    <a 
-                      href={restaurant.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      {restaurant.website}
-                    </a>
-                  ) : (
-                    '-'
-                  )}
-                </TableCell>
-                  <TableCell>
-                    <Badge 
-                      className={
-                        restaurant.status === 'pending' 
-                          ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' 
-                          : restaurant.status === 'approved' 
-                          ? 'bg-green-100 text-green-800 hover:bg-green-100' 
-                          : ''
-                      }
-                    >
-                      {restaurant.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {restaurant.status === 'pending' && (
-                          <DropdownMenuItem onClick={() => handleApprove(restaurant.id, 'restaurant')}>
-                            <Check className="mr-2 h-4 w-4" /> Approve
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => handleEdit(restaurant, 'restaurant')}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setDeletingRestaurant(restaurant)} className="text-red-600">
-                          <Trash className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <div className="relative overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 bg-background z-20 whitespace-nowrap">Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Address</TableHead>
+                  <TableHead className="whitespace-nowrap">Postal Code</TableHead>
+                  <TableHead className="whitespace-nowrap">City</TableHead>
+                  <TableHead className="whitespace-nowrap">Website</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredEntities(restaurants).map((restaurant) => (
+                  <TableRow key={restaurant.id}>
+                    <TableCell className="sticky left-0 bg-background z-20 whitespace-nowrap">
+                      {restaurant.name}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{restaurant.address}</TableCell>
+                    <TableCell className="whitespace-nowrap">{restaurant.postal_code}</TableCell>
+                    <TableCell className="whitespace-nowrap">{restaurant.cities?.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {restaurant.website ? (
+                        <a 
+                          href={restaurant.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {restaurant.website}
+                        </a>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge 
+                        className={
+                          restaurant.status === 'pending' 
+                            ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' 
+                            : restaurant.status === 'approved' 
+                            ? 'bg-green-100 text-green-800 hover:bg-green-100' 
+                            : ''
+                        }
+                      >
+                        {restaurant.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {restaurant.status === 'pending' && (
+                            <DropdownMenuItem onClick={() => handleApprove(restaurant.id, 'restaurant')}>
+                              <Check className="mr-2 h-4 w-4" /> Approve
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleEdit(restaurant, 'restaurant')}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeletingRestaurant(restaurant)} className="text-red-600">
+                            <Trash className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </TabsContent>
 
         <TabsContent value="cities">
-          <h2 className="text-xl font-semibold mb-2">Cities</h2>
           <Table>
             <TableHeader>
               <TableRow>
@@ -620,7 +622,6 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="types">
-          <h2 className="text-xl font-semibold mb-2">Types</h2>
           <Table>
             <TableHeader>
               <TableRow>

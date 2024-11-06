@@ -104,7 +104,7 @@ const UserSettings = ({ user, setUser }) => {
       </div>
       
       <Tabs defaultValue="username" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList>
           <TabsTrigger value="username">Username</TabsTrigger>
           <TabsTrigger value="password">Password</TabsTrigger>
         </TabsList>
