@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const FilterSection = ({ title, onClear, showClear, children }) => (
   <div className="space-y-2">
@@ -85,19 +85,8 @@ const RestaurantFilter = ({
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="sticky top-0 z-10 bg-background">
-        <div className="px-4">
-          <div className="max-w-[1000px] mx-auto w-full">
-            <div className="py-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => navigate('/')}
-                className="shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </div>
-
+        <div>
+          <div className="max-w-[1100px] mx-auto w-full">
             {getActiveFilters().length > 0 && (
               <div className="pb-4">
                 <div className="flex flex-wrap gap-2">
@@ -107,7 +96,7 @@ const RestaurantFilter = ({
                       variant="secondary"
                       className="flex items-center gap-1 pr-1"
                     >
-                      <span className="px-1">{filter.value}</span>
+                      <span>{filter.value}</span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -118,25 +107,15 @@ const RestaurantFilter = ({
                       </Button>
                     </Badge>
                   ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={handleClearAll}
-                  >
-                    Clear all
-                  </Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Filter Content */}
+  
       <div className="flex-1">
-        <div className="max-w-[1000px] mx-auto w-full space-y-6 pb-20">
-          {/* Types Section */}
+        <div className="max-w-[1100px] mx-auto w-full space-y-6 pb-20">
           <FilterSection title="Type">
             <Select
               value={filters.type_id?.toString() || "all"}
@@ -158,8 +137,7 @@ const RestaurantFilter = ({
               </SelectContent>
             </Select>
           </FilterSection>
-
-          {/* Cities Section */}
+  
           <FilterSection title="City">
             <Select
               value={filters.city_id?.toString() || "all"}
@@ -181,8 +159,7 @@ const RestaurantFilter = ({
               </SelectContent>
             </Select>
           </FilterSection>
-
-          {/* Price Section */}
+  
           <FilterSection title="Price Range">
             <div className="grid grid-cols-3 gap-2">
               {[1, 2, 3].map((value) => (
@@ -201,8 +178,7 @@ const RestaurantFilter = ({
               ))}
             </div>
           </FilterSection>
-
-          {/* Sort Section */}
+  
           <FilterSection title="Sort By">
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -225,16 +201,18 @@ const RestaurantFilter = ({
           </FilterSection>
         </div>
       </div>
-
-      {/* Bottom Navigation */}
+  
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
         <div className="max-w-[900px] mx-auto w-full flex gap-3">
           <Button 
             variant="outline"
             className="flex-1"
-            onClick={handleClearAll}
+            onClick={() => {
+              handleClearAll();
+              navigate('/');
+            }}
           >
-            Clear all
+            Clear filters
           </Button>
           <Button 
             onClick={handleApply}

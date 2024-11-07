@@ -71,7 +71,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
   const [noteContent, setNoteContent] = useState('');
   const [rating, setRating] = useState(0);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [alert, setAlert] = useState({ show: false, message: '', type: 'info' });
+  const [alert, setAlert] = useState({ show: false, message: '', type: 'info', confirmed: false });
   const [isOwner, setIsOwner] = useState(false);
   const [loadingStates, setLoadingStates] = useState({
     removing: false
@@ -241,10 +241,13 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       const { error: deleteError } = await supabase
         .from('notes')
         .delete()
-        .eq('id', displayedNote.id);
+        .eq('id', displayedNote.id)
+        .eq('user_id', user.id);
   
       if (deleteError) throw deleteError;
   
+      setNoteContent('');
+      setEditingNote(false);
       await refetch();
       setAlert({ 
         show: true, 
@@ -255,7 +258,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       console.error('Error deleting note:', error);
       setAlert({ 
         show: true, 
-        message: 'Failed to delete note', 
+        message: 'Failed to delete note: ' + error.message, 
         type: 'error' 
       });
     }
@@ -663,19 +666,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </Dialog>
 
       {/* Alert Dialog */}
-      <AlertDialog 
-        open={alert.show} 
-        onOpenChange={(open) => {
-          setAlert(prev => ({ ...prev, show: open }));
-          if (!open) {
-            if (alert.type === 'delete') {
-              handleRemoveRestaurant();
-            } else if (alert.type === 'delete-note') {
-              handleDeleteNote();
-            }
-          }
-        }}
-      >
+      <AlertDialog open={alert.show}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -688,17 +679,25 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
           <AlertDialogFooter>
             {(alert.type === 'delete' || alert.type === 'delete-note') ? (
               <>
-                <AlertDialogCancel onClick={() => setAlert({ ...alert, show: false })}>
+                <AlertDialogCancel onClick={() => setAlert({ show: false })}>
                   Cancel
                 </AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    if (alert.type === 'delete-note') {
+                      await handleDeleteNote();
+                    } else if (alert.type === 'delete') {
+                      await handleRemoveRestaurant();
+                    }
+                    setAlert({ show: false });
+                  }}
                 >
                   {alert.type === 'delete' ? 'Remove' : 'Delete'}
                 </AlertDialogAction>
               </>
             ) : (
-              <AlertDialogAction onClick={() => setAlert({ ...alert, show: false })}>
+              <AlertDialogAction onClick={() => setAlert({ show: false })}>
                 OK
               </AlertDialogAction>
             )}
