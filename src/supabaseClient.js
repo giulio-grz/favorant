@@ -1454,4 +1454,37 @@ export const getActivityFeed = async (userId) => {
   });
 };
 
+export const resetPassword = async (email) => {
+  return executeWithRetry(async () => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,  // Changed from /auth?reset=true
+      });
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      throw error;
+    }
+  });
+};
+
+export const updateUserPassword = async (newPassword) => {
+  return executeWithRetry(async () => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  });
+};
+
+
 export default supabase;
