@@ -49,6 +49,7 @@ const AdminDashboard = lazy(() => import('./features/admin/AdminDashboard'));
 const UserProfilePage = lazy(() => import('@/features/restaurants/UserProfilePage'));
 const ActivityFeed = lazy(() => import('@/features/restaurants/components/ActivityFeed'));
 const UserSearch = lazy(() => import('./features/users/UserSearch'));
+const ResetPasswordForm = lazy(() => import('./components/ResetPasswordForm'));
 
 // Wrap the RestaurantDashboard route in a component that can use hooks
 const DashboardWrapper = ({ user, filters, setFilters, sortOption, setSortOption }) => {
@@ -436,6 +437,14 @@ function App() {
                   ) : (
                     <Navigate to="/auth" replace />
                   )
+                } 
+              />
+              <Route 
+                path="/reset-password" 
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <ResetPasswordForm />
+                  </Suspense>
                 } 
               />
             </Routes>
