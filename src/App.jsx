@@ -247,10 +247,12 @@ function App() {
     );
   }
 
+  const noHeaderPaths = ['/reset-password', '/add', '/auth'];
+
   return (
     <ErrorBoundary>
       <Router>
-        {user && <Header user={user} setUser={setUser} />}
+      {user && !noHeaderPaths.includes(location.pathname) && <Header user={user} setUser={setUser} />}
         <main className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw]">
           <Suspense fallback={<LoadingSpinner />}>
             {verificationMessage && (

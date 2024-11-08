@@ -299,8 +299,8 @@ const AddEditRestaurant = ({
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header with Progress */}
-      <div className="fixed top-0 left-0 right-0 z-10 bg-background border-b">
-        <div className="max-w-[900px] mx-auto px-4 w-full">
+      <div className="fixed top-0 left-0 right-0 z-10 bg-background border-b p-4">
+        <div className="w-full sm:max-w-[900px] sm:mx-auto">
           <div className="py-4">
             <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
               <span>Step {step} of {totalSteps}</span>
@@ -314,8 +314,8 @@ const AddEditRestaurant = ({
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 pt-6 pb-20">
-        <div className="max-w-[900px] mx-auto px-4 w-full">
+      <main className="flex-1 pt-32 pb-20">
+        <div className="w-full sm:max-w-[900px] sm:mx-auto">
           {/* Step 1: Search */}
           {step === 1 && (
             <div className="space-y-4">
@@ -582,7 +582,7 @@ const AddEditRestaurant = ({
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
-        <div className="max-w-[900px] mx-auto w-full">
+        <div className="w-full sm:max-w-[900px] sm:mx-auto">
           <div className="flex gap-3">
             <Button
               variant="outline"
