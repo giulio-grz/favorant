@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, MapPin } from 'lucide-react';
+import { Star, MapPin, PenLine } from 'lucide-react';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -57,67 +57,65 @@ const ActivityFeed = ({ user }) => {
           {activities.map((activity) => (
             <div 
               key={`${activity.type}-${activity.id}`}
-              className="py-6 first:pt-0 cursor-pointer hover:bg-accent/5 transition-colors"
+              className="py-4 first:pt-0 cursor-pointer hover:bg-accent/5 transition-colors"
               onClick={() => navigate(`/user/${activity.user_id}/restaurant/${activity.restaurant_id}`)}
             >
-              {/* Header with Avatar and Timestamp */}
-              <div className="flex items-center space-x-3 mb-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
+              {/* Header with Avatar and Username */}
+              <div className="flex items-center gap-2 mb-3">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="text-sm">
                     {activity.username?.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium truncate">
-                      {activity.username}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistance(new Date(activity.created_at), new Date(), { addSuffix: true })}
-                    </span>
-                  </div>
-                </div>
+                <span className="text-sm font-medium">
+                  {activity.username}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  • {formatDistance(new Date(activity.created_at), new Date(), { addSuffix: true })}
+                </span>
               </div>
-
+            
               {/* Activity Content */}
-              <div className="pl-11 space-y-2">
-                {/* Restaurant Name and Type for all activities */}
-                <div className="flex items-center gap-2">
-                  {activity.type === 'review' && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
-                  {activity.type === 'note' && <MapPin className="h-4 w-4" />}
-                  <span className="font-medium">{activity.restaurant_name}</span>
-                </div>
-
-                {/* Activity-specific content */}
-                {activity.type === 'review' && (
-                  <div className="bg-muted/50 p-3 rounded-md text-sm flex items-center gap-2">
-                    <span>Added review</span>
-                    <Badge variant="secondary">
-                      {activity.rating.toFixed(1)}
-                    </Badge>
-                  </div>
-                )}
-
-                {activity.type === 'bookmark' && (
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                    Wants to try
-                  </Badge>
-                )}
-
-                {activity.type === 'note' && activity.note && (
-                  <div className="bg-muted/50 p-3 rounded-md text-sm">
-                    {activity.note}
-                  </div>
-                )}
-
-                {/* Restaurant Details */}
-                <div className="text-xs text-muted-foreground">
+              <div className="pl-9 space-y-1.5">
+                {/* Restaurant Name */}
+                <div className="font-medium leading-snug">{activity.restaurant_name}</div>
+            
+                {/* Type and City */}
+                <div className="text-xs text-muted-foreground leading-tight">
                   {activity.restaurant_type && activity.city && (
                     <>
                       {activity.restaurant_type} • {activity.city}
                     </>
                   )}
                 </div>
+            
+                {/* Activity-specific content */}
+                {activity.type === 'review' && (
+                  <div className="flex items-center gap-1.5 text-sm mt-2">
+                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    <span className="font-medium">{activity.rating.toFixed(1)}</span>
+                  </div>
+                )}
+            
+                {activity.type === 'bookmark' && (
+                  <div className="mt-2">
+                    <Badge 
+                      variant="secondary" 
+                      className="bg-emerald-50 text-emerald-700 font-normal text-xs"
+                    >
+                      Wants to try
+                    </Badge>
+                  </div>
+                )}
+            
+            {activity.type === 'note' && activity.note && (
+                  <div className="flex items-start gap-1.5 mt-2">
+                    <PenLine className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="text-sm text-muted-foreground">
+                      {activity.note}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

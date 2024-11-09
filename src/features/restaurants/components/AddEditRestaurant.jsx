@@ -297,7 +297,7 @@ const AddEditRestaurant = ({
 
   // PART 4: RENDER JSX
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
       {/* Header with Progress */}
       <div className="fixed top-0 left-0 right-0 z-10 bg-background border-b p-4">
         <div className="w-full sm:max-w-[900px] sm:mx-auto">
@@ -314,7 +314,7 @@ const AddEditRestaurant = ({
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 pt-32 pb-20">
+      <main className="flex-1 pt-32 pb-20 overflow-y-auto">
         <div className="w-full sm:max-w-[900px] sm:mx-auto">
           {/* Step 1: Search */}
           {step === 1 && (

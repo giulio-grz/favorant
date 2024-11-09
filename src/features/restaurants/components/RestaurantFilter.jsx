@@ -203,13 +203,13 @@ const RestaurantFilter = ({
       </div>
   
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
-        <div className="max-w-[900px] mx-auto w-full flex gap-3">
+        <div className="max-w-[1050px] mx-auto w-full flex gap-3">
           <Button 
             variant="outline"
             className="flex-1"
             onClick={() => {
               handleClearAll();
-              navigate('/');
+              navigate(-1);
             }}
           >
             Clear filters
