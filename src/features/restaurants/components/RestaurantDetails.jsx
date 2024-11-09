@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, MoreHorizontal, Star, FileEdit, Plus, Trash2, Globe } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Star, FileEdit, Plus, Trash2, Globe, Link2 } from 'lucide-react';
 import { useRestaurantDetails } from '../hooks/useRestaurantDetails';
 import { 
   supabase,
@@ -364,7 +364,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
       </div>
 
       {/* Address */}
-      <div className="text-gray-500 text-sm mb-4">
+      <div className={`text-gray-500 text-sm ${!restaurant?.website ? 'border-b pb-8 mb-8' : 'mb-4'}`}>
         {restaurant?.address}
         {restaurant?.postal_code && `, ${restaurant.postal_code}`}
         {restaurant?.cities?.name && `, ${restaurant.cities.name}`}
@@ -379,7 +379,7 @@ const RestaurantDetails = ({ user, updateLocalRestaurant, deleteLocalRestaurant,
             rel="noopener noreferrer"
             className="text-primary hover:underline flex items-center"
           >
-            <Globe className="h-4 w-4 mr-2" />
+            <Link2 className="h-4 w-4 mr-2 rotate-[135deg]" />
             Visit Website
           </a>
         </div>

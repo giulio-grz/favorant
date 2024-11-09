@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Euro, MapPin, UtensilsCrossed, Star, User, Plus, SlidersHorizontal } from 'lucide-react';
+import { Euro, MapPin, UtensilsCrossed, Star, User, Plus, ListFilter } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import CityMap from './components/CityMap';
 import RestaurantList from './components/RestaurantList';
@@ -257,23 +257,24 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
 
   return (
     <div className="space-y-6 pb-44">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      {/* Show user info only when viewing another user's profile */}
       {viewingUser && (
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-14 w-14">
-              <AvatarFallback className="text-xl">
-                {viewingUser.username?.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-base font-semibold">{viewingUser.username}</h2>
-              <p className="text-xs text-muted-foreground">{viewingUser.email}</p>
-            </div>
+        <div className="flex items-center space-x-3 mb-6">
+          <Avatar className="h-14 w-14">
+            <AvatarFallback className="text-xl">
+              {viewingUser.username?.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="text-base font-semibold">{viewingUser.username}</h2>
+            <p className="text-xs text-muted-foreground">{viewingUser.email}</p>
           </div>
-        )}
-
+        </div>
+      )}
+  
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="w-full max-w-[300px]"> {/* Added container */}
+          <div className="w-full max-w-[300px]">
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="visited">Visited</TabsTrigger>
@@ -286,20 +287,53 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
           <SearchBar onSearch={handleSearch} />
         </div>
       </div>
-
+  
       <CityMap
         restaurants={filteredRestaurants}
         cities={restaurants?.map(r => r.cities).filter(Boolean)}
         onRestaurantClick={handleRestaurantClick}
-        className="mt-2"
       />
-
+  
       <div className="space-y-4">
         <RestaurantList 
           restaurants={filteredRestaurants}
           onRestaurantClick={handleRestaurantClick}
         />
       </div>
+  
+      {/* Show fixed buttons only on own dashboard */}
+      {(!viewingUserId || viewingUserId === user.id) && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-[100]">
+          <Button 
+            className="rounded-full shadow-xl h-12 px-6 bg-primary hover:bg-primary/90 min-w-[120px]"
+            onClick={() => navigate('/add')}
+          >
+            <Plus className="h-5 w-5" />
+            <span className="ml-2">Add</span>
+          </Button>
+          <Button 
+            variant="outline"
+            className="rounded-full shadow-xl h-12 px-6 bg-background border-2 min-w-[120px]"
+            onClick={() => navigate('/filter')}
+          >
+            <ListFilter className="h-5 w-5" />
+            <span className="ml-2">Filter</span>
+          </Button>
+        </div>
+      )}
+
+      {viewingUser && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-[100]">
+        <Button 
+          variant="outline"
+          className="rounded-full shadow-xl h-12 px-6 bg-background border-2 min-w-[120px]"
+          onClick={() => navigate('/filter')}
+        >
+          <ListFilter className="h-5 w-5" />
+          <span className="ml-2">Filter</span>
+        </Button>
+      </div>
+    )}
 
       <AlertDialog open={alert.show} onOpenChange={() => setAlert({ ...alert, show: false })}>
         <AlertDialogContent>
@@ -316,24 +350,6 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-[100]">
-        <Button 
-          className="rounded-full shadow-xl h-12 px-6 bg-primary hover:bg-primary/90 min-w-[120px]"
-          onClick={() => navigate('/add')}
-        >
-          <Plus className="h-5 w-5" />
-          <span className="ml-2">Add</span>
-        </Button>
-        <Button 
-          variant="outline"
-          className="rounded-full shadow-xl h-12 px-6 bg-background border-2 min-w-[120px]"
-          onClick={() => navigate('/filter')}
-        >
-          <SlidersHorizontal className="h-5 w-5" />
-          <span className="ml-2">Filter</span>
-        </Button>
-      </div>
     </div>
   );
 };
