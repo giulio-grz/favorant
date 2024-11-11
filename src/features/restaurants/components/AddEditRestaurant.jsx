@@ -273,61 +273,48 @@ const AddEditRestaurant = ({
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center py-2 px-1 sm:p-4">
-      <div className="w-full max-w-3xl bg-white rounded-xl border shadow-sm flex flex-col min-h-[calc(100vh-0.5rem)] sm:min-h-[calc(100vh-2rem)]">
+    <div className="min-h-screen bg-background flex items-center justify-center sm:p-6">
+      <div className="w-full h-screen bg-white sm:min-h-[calc(100vh-1rem)] sm:h-auto sm:rounded-xl sm:border sm:shadow-sm sm:mx-4 sm:max-w-3xl flex flex-col">
         {/* Header */}
-        <div className="border-b bg-background rounded-t-xl">
-          <div className="flex h-14 items-center justify-between px-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate(-1)} 
-              className="flex items-center"
-            >
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
+        <div className="border-b bg-background sm:rounded-t-xl">
+          <div className="flex h-14 items-center justify-between px-2 sm:px-4">
             <span className="text-sm font-medium">
               Step {step} of {totalSteps}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {step === 1 ? "Search" : step === 2 ? "Details" : "Add to List"}
             </span>
           </div>
           <Progress value={progress} className="h-1" />
         </div>
 
         {/* Main Content - Scrollable Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search restaurants..."
-                  className="pl-10 h-12 text-base"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              {loading ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Searching...
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-2 sm:px-4 py-6">
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search restaurants..."
+                    className="pl-10 h-12 text-base"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
-              ) : searchResults.length > 0 ? (
-                <div className="space-y-2">
-                  {searchResults.map((result) => {
-                    const isInList = restaurants.some(r => r.id === result.id);
-                    
-                    return (
+
+                {loading ? (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    Searching...
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="space-y-2">
+                    {searchResults.map((result) => (
                       <button
                         key={result.id}
                         className="w-full p-4 text-left bg-card hover:bg-accent rounded-lg border transition-colors"
-                        onClick={() => {
-                          if (isInList) {
-                            navigate(`/restaurant/${result.id}`);
-                          } else {
-                            handleSelectRestaurant(result);
-                          }
-                        }}
+                        onClick={() => handleSelectRestaurant(result)}
                       >
                         <div className="flex justify-between items-start gap-4">
                           <div>
@@ -335,228 +322,220 @@ const AddEditRestaurant = ({
                             <div className="text-sm text-muted-foreground mt-1">
                               {result.address}
                             </div>
-                            <div className="flex gap-2 mt-2">
-                              {result.restaurant_types?.name && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {result.restaurant_types.name}
-                                </Badge>
-                              )}
-                              {isInList && (
-                                <Badge variant="outline" className="text-xs">
-                                  Already in list
-                                </Badge>
-                              )}
-                            </div>
+                            {result.restaurant_types?.name && (
+                              <Badge variant="secondary" className="text-xs">
+                                {result.restaurant_types.name}
+                              </Badge>
+                            )}
                           </div>
                           <ArrowRight className="h-4 w-4 text-muted-foreground mt-1" />
                         </div>
                       </button>
-                    );
-                  })}
-                </div>
-              ) : searchQuery.length > 2 ? (
-                <div className="text-center py-8 border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    No restaurants found matching "{searchQuery}"
-                  </p>
-                  <Button 
-                    onClick={() => {
-                      setRestaurant(prev => ({ ...prev, name: searchQuery }));
-                      setStep(2);
-                    }} 
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add as New Restaurant
-                  </Button>
-                </div>
-              ) : searchQuery.length > 0 ? (
-                <p className="text-sm text-center text-muted-foreground">
-                  Type at least 3 characters to search
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Restaurant Name</Label>
-                  <Input
-                    value={restaurant.name}
-                    onChange={(e) => setRestaurant(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter restaurant name"
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Street Address</Label>
-                  <Input
-                    value={restaurant.address || ''}
-                    onChange={(e) => setRestaurant(prev => ({
-                      ...prev,
-                      address: e.target.value
-                    }))}
-                    placeholder="Enter street address"
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Postal Code</Label>
-                  <Input
-                    value={restaurant.postal_code || ''}
-                    onChange={(e) => setRestaurant(prev => ({
-                      ...prev,
-                      postal_code: e.target.value
-                    }))}
-                    placeholder="Enter postal code"
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>City</Label>
-                  <Select
-                    value={restaurant.city_id?.toString()}
-                    onValueChange={(value) => {
-                      if (value === 'new') {
-                        setIsAddingCity(true);
-                      } else {
-                        setRestaurant(prev => ({
-                          ...prev,
-                          city_id: parseInt(value)
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select city" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cities.map(city => (
-                        <SelectItem key={city.id} value={city.id.toString()}>
-                          {city.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 h-4 mr-2" />
-                        Add new city
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select
-                    value={restaurant.type_id?.toString()}
-                    onValueChange={(value) => {
-                      if (value === 'new') {
-                        setIsAddingType(true);
-                      } else {
-                        setRestaurant(prev => ({
-                          ...prev,
-                          type_id: parseInt(value)
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {types.map(type => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 h-4 mr-2" />
-                        Add new type
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Website (optional)</Label>
-                  <Input
-                    type="url"
-                    value={restaurant.website || ''}
-                    onChange={(e) => setRestaurant(prev => ({
-                      ...prev,
-                      website: e.target.value
-                    }))}
-                    placeholder="https://example.com"
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Price Range</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[1, 2, 3].map((value) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        variant={restaurant.price === value ? "default" : "outline"}
-                        className="h-12"
-                        onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
-                      >
-                        {'€'.repeat(value)}
-                      </Button>
                     ))}
                   </div>
+                ) : searchQuery.length > 2 ? (
+                  <div className="text-center py-8 border rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      No restaurants found matching "{searchQuery}"
+                    </p>
+                    <Button 
+                      onClick={() => {
+                        setRestaurant(prev => ({ ...prev, name: searchQuery }));
+                        setStep(2);
+                      }} 
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add as New Restaurant
+                    </Button>
+                  </div>
+                ) : searchQuery.length > 0 ? (
+                  <p className="text-sm text-center text-muted-foreground">
+                    Type at least 3 characters to search
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Restaurant Name</Label>
+                    <Input
+                      value={restaurant.name}
+                      onChange={(e) => setRestaurant(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter restaurant name"
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Street Address</Label>
+                    <Input
+                      value={restaurant.address || ''}
+                      onChange={(e) => setRestaurant(prev => ({
+                        ...prev,
+                        address: e.target.value
+                      }))}
+                      placeholder="Enter street address"
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Postal Code</Label>
+                    <Input
+                      value={restaurant.postal_code || ''}
+                      onChange={(e) => setRestaurant(prev => ({
+                        ...prev,
+                        postal_code: e.target.value
+                      }))}
+                      placeholder="Enter postal code"
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    <Select
+                      value={restaurant.city_id?.toString()}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
+                          setIsAddingCity(true);
+                        } else {
+                          setRestaurant(prev => ({
+                            ...prev,
+                            city_id: parseInt(value)
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select city" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map(city => (
+                          <SelectItem key={city.id} value={city.id.toString()}>
+                            {city.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-primary">
+                          <Plus className="inline-block w-4 h-4 mr-2" />
+                          Add new city
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select
+                      value={restaurant.type_id?.toString()}
+                      onValueChange={(value) => {
+                        if (value === 'new') {
+                          setIsAddingType(true);
+                        } else {
+                          setRestaurant(prev => ({
+                            ...prev,
+                            type_id: parseInt(value)
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {types.map(type => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-primary">
+                          <Plus className="inline-block w-4 h-4 mr-2" />
+                          Add new type
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Website (optional)</Label>
+                    <Input
+                      type="url"
+                      value={restaurant.website || ''}
+                      onChange={(e) => setRestaurant(prev => ({
+                        ...prev,
+                        website: e.target.value
+                      }))}
+                      placeholder="https://example.com"
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Price Range</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((value) => (
+                        <Button
+                          key={value}
+                          variant={restaurant.price === value ? "default" : "outline"}
+                          onClick={() => setRestaurant(prev => ({ ...prev, price: value }))}
+                          className="h-12"
+                        >
+                          {'€'.repeat(value)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 3 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-medium">Add to Your List</h2>
-              <div className="space-y-4">
-                <Button
-                  variant={isToTry ? "default" : "outline"}
-                  className="w-full justify-start h-auto p-4"
-                  onClick={() => {
-                    setIsToTry(true);
-                    setShowReviewForm(false);
-                  }}
-                >
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-medium">Add to "To Try" List</span>
-                    <span className="text-sm text-muted-foreground mt-1 break-words">
-                      Save this restaurant to try later
-                    </span>
-                  </div>
-                </Button>
+            {step === 3 && (
+              <div className="space-y-6">
+                <h2 className="text-lg font-medium">Add to Your List</h2>
+                <div className="space-y-4">
+                  <Button
+                    variant={isToTry ? "default" : "outline"}
+                    className="w-full justify-start h-auto p-4"
+                    onClick={() => {
+                      setIsToTry(true);
+                      setShowReviewForm(false);
+                    }}
+                  >
+                    <div className="flex flex-col items-start text-left">
+                      <span className="font-medium">Add to "To Try" List</span>
+                      <span className="text-sm text-muted-foreground mt-1 break-words">
+                        Save this restaurant to try later
+                      </span>
+                    </div>
+                  </Button>
 
-                <Button
-                  variant={showReviewForm ? "default" : "outline"}
-                  className="w-full justify-start h-auto p-4"
-                  onClick={() => {
-                    setIsToTry(false);
-                    setShowReviewForm(true);
-                  }}
-                >
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-medium">Add Review</span>
-                    <span className="text-sm text-muted-foreground mt-1 break-words">
-                      Add review to this restaurant
-                    </span>
-                  </div>
-                </Button>
+                  <Button
+                    variant={showReviewForm ? "default" : "outline"}
+                    className="w-full justify-start h-auto p-4"
+                    onClick={() => {
+                      setIsToTry(false);
+                      setShowReviewForm(true);
+                    }}
+                  >
+                    <div className="flex flex-col items-start text-left">
+                      <span className="font-medium">Add Review</span>
+                      <span className="text-sm text-muted-foreground mt-1 break-words">
+                        Add review to this restaurant
+                      </span>
+                    </div>
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t bg-background p-4 rounded-b-xl">
+        <div className="border-t bg-background p-2 sm:p-4 sm:rounded-b-xl">
           <div className="flex gap-3">
             <Button
               variant="outline"
