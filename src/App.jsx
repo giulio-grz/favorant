@@ -14,7 +14,6 @@ import ErrorBoundary from './ErrorBoundary';
 import LoadingSpinner from './components/LoadingSpinner';
 import Header from './components/Header';
 
-// Add this at the top, after imports
 const createProfile = async (userId, email, username) => {
   try {
     const { data, error } = await supabase
@@ -51,7 +50,6 @@ const ActivityFeed = lazy(() => import('@/features/restaurants/components/Activi
 const UserSearch = lazy(() => import('./features/users/UserSearch'));
 const ResetPasswordForm = lazy(() => import('./components/ResetPasswordForm'));
 
-// Wrap the RestaurantDashboard route in a component that can use hooks
 const DashboardWrapper = ({ user, filters, setFilters, sortOption, setSortOption }) => {
   const location = useLocation();
   return (
@@ -92,7 +90,6 @@ function App() {
     error: entitiesError 
   } = useTypesAndCities();
 
-  // Initialize auth and handle session changes
   useEffect(() => {
     let mounted = true;
     let authTimeout;
@@ -133,7 +130,6 @@ function App() {
       }
     };
 
-    // Set up auth state change subscription with debounce
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
@@ -165,7 +161,6 @@ function App() {
       }, 100);
     });
 
-    // Set up session refresh interval
     sessionTimeout = setInterval(async () => {
       if (!mounted) return;
       
@@ -185,12 +180,10 @@ function App() {
       } catch (error) {
         console.error('Session refresh error:', error);
       }
-    }, 300000); // 5 minutes
+    }, 300000);
 
-    // Initialize auth
     initializeAuth();
 
-    // Cleanup
     return () => {
       mounted = false;
       clearTimeout(authTimeout);
@@ -222,7 +215,6 @@ function App() {
     setSortOption(newSortOption);
   }, []);
 
-  // Handle loading states
   if (!authInitialized || loading) {
     return <LoadingSpinner />;
   }
@@ -247,12 +239,15 @@ function App() {
     );
   }
 
-  const noHeaderPaths = ['/reset-password', '/add', '/auth'];
-
-  return (
-    <ErrorBoundary>
-      <Router>
-      {user && !noHeaderPaths.includes(location.pathname) && <Header user={user} setUser={setUser} />}
+  const AppContent = () => {
+    const location = useLocation();
+    const noHeaderPaths = ['/reset-password', '/add', '/auth', '/filter'];
+    
+    return (
+      <>
+        {user && !noHeaderPaths.some(path => location.pathname.startsWith(path)) && 
+          <Header user={user} setUser={setUser} />
+        }
         <main className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw]">
           <Suspense fallback={<LoadingSpinner />}>
             {verificationMessage && (
@@ -341,7 +336,6 @@ function App() {
                   )
                 } 
               />
-
               <Route 
                 path="/user/:userId/restaurant/:id" 
                 element={
@@ -452,6 +446,14 @@ function App() {
             </Routes>
           </Suspense>
         </main>
+      </>
+    );
+  };
+
+  return (
+    <ErrorBoundary>
+      <Router>
+        <AppContent />
       </Router>
     </ErrorBoundary>
   );
