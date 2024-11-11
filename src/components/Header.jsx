@@ -18,14 +18,14 @@ const Header = ({ user, setUser }) => {
   };
 
   return (
-    <header className="bg-background pt-3 pb-3 mb-4">
+    <header className="bg-background pt-3 pb-3 mb-8 border-b">
       <div className="max-w-full px-[5vw] sm:px-[10vw] lg:px-[16vw] py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link to="/" className="flex items-center">
             <img 
               src={logo} 
               alt="Favorant Logo" 
-              className="h-8 w-auto"
+              className="h-7 w-auto"
             />
           </Link>
         </div>

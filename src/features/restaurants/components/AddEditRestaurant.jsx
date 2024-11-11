@@ -1,7 +1,6 @@
-// PART 1: IMPORTS AND COMPONENT SETUP
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, Plus } from 'lucide-react';
+import { Search, ArrowRight, Plus, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { 
   supabase,
@@ -21,7 +21,6 @@ import {
   addBookmark
 } from '@/supabaseClient';
 import { Textarea } from "@/components/ui/textarea";
-import { AddressSection } from "@/components/ui/address-section";
 
 const AddEditRestaurant = ({ 
   user, 
@@ -29,10 +28,9 @@ const AddEditRestaurant = ({
   cities, 
   restaurants, 
   addLocalRestaurant, 
-  setTypes,  // Add this
-  setCities   // Add this
+  setTypes,
+  setCities
 }) => {
-  // PART 2: STATE MANAGEMENT
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,26 +52,21 @@ const AddEditRestaurant = ({
 
   const [rating, setRating] = useState(5);
   const [error, setError] = useState(null);
-
   const [isToTry, setIsToTry] = useState(false);
-  
   const [alert, setAlert] = useState({
     show: false,
     message: '',
     type: 'success'
   });
   
-  // New Type/City states
   const [isAddingCity, setIsAddingCity] = useState(false);
   const [isAddingType, setIsAddingType] = useState(false);
   const [newCityName, setNewCityName] = useState('');
   const [newTypeName, setNewTypeName] = useState('');
 
-  // Progress calculation
   const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
 
-  // PART 3: HANDLERS AND EFFECTS
   const handleSearch = useCallback(async (query) => {
     if (query.length < 3) {
       setSearchResults([]);
@@ -104,13 +97,11 @@ const AddEditRestaurant = ({
 
   const handleSelectRestaurant = async (selected) => {
     try {
-      // Check if the restaurant ID exists
       if (!selected?.id) {
         console.error('No restaurant ID found:', selected);
         return;
       }
   
-      // First check if the user already has this restaurant
       const { data: existingBookmark } = await supabase
         .from('bookmarks')
         .select('*')
@@ -126,12 +117,10 @@ const AddEditRestaurant = ({
         .maybeSingle();
   
       if (existingBookmark || existingReview) {
-        // If user already has this restaurant, redirect to its page
         navigate(`/user/${user.id}/restaurant/${selected.id}`);
         return;
       }
   
-      // Otherwise, proceed with adding to list
       setSelectedRestaurant(selected);
       setIsToTry(false);
       setShowReviewForm(false);
@@ -141,7 +130,6 @@ const AddEditRestaurant = ({
     }
   };
 
-  // Update this function to match new structure:
   const handleAddNewCity = async () => {
     try {
       const newCity = await createCity({ 
@@ -150,17 +138,14 @@ const AddEditRestaurant = ({
         status: 'pending'
       });
   
-      // Create properly structured city object
       const updatedCity = {
         id: newCity.id,
         name: newCityName.trim(),
         status: 'pending'
       };
       
-      // Update cities list
       setCities(prev => [...prev, updatedCity]);
       
-      // Update restaurant state with new city
       setRestaurant(prev => ({
         ...prev,
         city_id: updatedCity.id
@@ -174,7 +159,6 @@ const AddEditRestaurant = ({
     }
   };
 
-  // Update this function to match new structure:
   const handleAddNewType = async () => {
     try {
       const newType = await createRestaurantType({ 
@@ -183,17 +167,14 @@ const AddEditRestaurant = ({
         status: 'pending'
       });
   
-      // Create properly structured type object
       const updatedType = {
         id: newType.id,
         name: newTypeName.trim(),
         status: 'pending'
       };
       
-      // Update types list
       setTypes(prev => [...prev, updatedType]);
       
-      // Update restaurant state with new type
       setRestaurant(prev => ({
         ...prev,
         type_id: updatedType.id
@@ -212,7 +193,6 @@ const AddEditRestaurant = ({
       setError(null);
   
       if (selectedRestaurant) {
-        // Adding existing restaurant to user's list
         if (isToTry) {
           await addBookmark(user.id, selectedRestaurant.id, true);
         } else if (showReviewForm) {
@@ -234,7 +214,6 @@ const AddEditRestaurant = ({
         return;
       }
       
-      // Creating new restaurant (only if no existing restaurant was selected)
       const restaurantData = {
         name: restaurant.name,
         address: restaurant.address,
@@ -278,7 +257,6 @@ const AddEditRestaurant = ({
     }
   };
 
-  // Add this function to check if the form is valid
   const isFormValid = () => {
     if (step < 3) {
       return (
@@ -291,32 +269,32 @@ const AddEditRestaurant = ({
       );
     }
     
-    // For step 3, we just need either isToTry selected or showReviewForm
     return isToTry || showReviewForm;
   };
 
-  // PART 4: RENDER JSX
   return (
-    <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
-      {/* Header with Progress */}
-      <div className="fixed top-0 left-0 right-0 z-10 bg-background border-b p-4">
-        <div className="w-full sm:max-w-[900px] sm:mx-auto">
-          <div className="py-4">
-            <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
-              <span>Step {step} of {totalSteps}</span>
-              <span className="text-foreground font-medium">
-                {step === 1 ? 'Search' : step === 2 ? 'Details' : 'Add to List'}
-              </span>
-            </div>
-            <Progress value={progress} className="h-1 bg-emerald-100" />
+    <div className="min-h-screen bg-background flex items-center justify-center py-2 px-1 sm:p-4">
+      <div className="w-full max-w-3xl bg-white rounded-xl border shadow-sm flex flex-col min-h-[calc(100vh-0.5rem)] sm:min-h-[calc(100vh-2rem)]">
+        {/* Header */}
+        <div className="border-b bg-background rounded-t-xl">
+          <div className="flex h-14 items-center justify-between px-4">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate(-1)} 
+              className="flex items-center"
+            >
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <span className="text-sm font-medium">
+              Step {step} of {totalSteps}
+            </span>
           </div>
+          <Progress value={progress} className="h-1" />
         </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 pt-32 pb-20 overflow-y-auto">
-        <div className="w-full sm:max-w-[900px] sm:mx-auto">
-          {/* Step 1: Search */}
+        {/* Main Content - Scrollable Area */}
+        <div className="flex-1 overflow-y-auto px-4 py-6">
           {step === 1 && (
             <div className="space-y-4">
               <div className="relative">
@@ -400,7 +378,6 @@ const AddEditRestaurant = ({
             </div>
           )}
 
-          {/* Step 2: Restaurant Details */}
           {step === 2 && (
             <div className="space-y-6">
               <div className="space-y-4">
@@ -465,7 +442,7 @@ const AddEditRestaurant = ({
                         </SelectItem>
                       ))}
                       <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 w-4 mr-2" />
+                        <Plus className="inline-block w-4 h-4 mr-2" />
                         Add new city
                       </SelectItem>
                     </SelectContent>
@@ -497,7 +474,7 @@ const AddEditRestaurant = ({
                         </SelectItem>
                       ))}
                       <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 w-4 mr-2" />
+                        <Plus className="inline-block w-4 h-4 mr-2" />
                         Add new type
                       </SelectItem>
                     </SelectContent>
@@ -538,7 +515,6 @@ const AddEditRestaurant = ({
             </div>
           )}
 
-          {/* Step 3: Add to List */}
           {step === 3 && (
             <div className="space-y-6">
               <h2 className="text-lg font-medium">Add to Your List</h2>
@@ -570,7 +546,7 @@ const AddEditRestaurant = ({
                   <div className="flex flex-col items-start text-left">
                     <span className="font-medium">Add Review</span>
                     <span className="text-sm text-muted-foreground mt-1 break-words">
-                      Add review to this restautant
+                      Add review to this restaurant
                     </span>
                   </div>
                 </Button>
@@ -578,11 +554,9 @@ const AddEditRestaurant = ({
             </div>
           )}
         </div>
-      </main>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
-        <div className="w-full sm:max-w-[900px] sm:mx-auto">
+        {/* Footer */}
+        <div className="border-t bg-background p-4 rounded-b-xl">
           <div className="flex gap-3">
             <Button
               variant="outline"
@@ -715,9 +689,8 @@ const AddEditRestaurant = ({
         </DialogContent>
       </Dialog>
 
-      {/* Error Message */}
       {error && (
-        <div className="fixed bottom-20 left-4 right-4 bg-destructive/15 text-destructive p-4 rounded-lg text-sm">
+        <div className="fixed bottom-4 left-4 right-4 mx-auto max-w-3xl bg-destructive/15 text-destructive p-4 rounded-lg text-sm">
           {error}
         </div>
       )}

@@ -55,7 +55,7 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) =>
             user_id
           )
         `)
-        .eq('status', 'approved');
+        .or(`status.eq.approved,created_by.eq.${userId}`)
   
       if (restaurantsError) throw restaurantsError;
   
