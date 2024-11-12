@@ -84,10 +84,10 @@ const RestaurantFilter = ({
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-full bg-white sm:rounded-xl sm:border sm:shadow-sm flex flex-col min-h-screen sm:min-h-[calc(100vh-1rem)] sm:mx-4 sm:max-w-3xl"> 
-        {/* Main Content - Scrollable Area */}
-        <div className="flex-1 overflow-y-auto">
+    <div className="fixed inset-0 bg-background sm:p-6 flex items-center justify-center">
+      <div className="w-full h-full bg-background sm:rounded-xl sm:border sm:shadow-sm sm:max-w-3xl flex flex-col">
+        {/* Main Content - Only This Part Scrollable */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {/* Active Filters */}
           {getActiveFilters().length > 0 && (
             <div className="px-2 sm:px-4 py-4 border-b">
@@ -199,7 +199,7 @@ const RestaurantFilter = ({
         </div>
 
         {/* Footer */}
-        <div className="border-t bg-background p-2 sm:p-4 rounded-b-xl">
+        <div className="shrink-0 border-t bg-background p-2 sm:p-4 sm:rounded-b-xl">
           <div className="flex gap-3">
             <Button 
               variant="outline"
