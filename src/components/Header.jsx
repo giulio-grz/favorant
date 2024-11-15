@@ -1,15 +1,168 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { PlusCircle, Filter, Settings, Shield, User, LogOut, Users, Search, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { signOut } from '../supabaseClient';
+import { supabase, signOut, getPendingCounts } from '../supabaseClient';
 import logo from '../assets/favorant-logo.svg';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    let channel;
+      
+    const loadPendingCounts = async () => {
+      if (user?.profile?.is_admin && mounted) {
+        try {
+          const counts = await getPendingCounts();
+          if (mounted) {
+            setPendingCount(counts.total);
+            console.log('Pending counts updated:', counts);
+          }
+        } catch (error) {
+          console.error('Error loading pending counts:', error);
+        }
+      }
+    };
+  
+    if (user?.profile?.is_admin) {
+      loadPendingCounts();
+      
+      channel = supabase
+        .channel('db-changes')
+        // Listen for new pending items
+        .on(
+          'postgres_changes',
+          { 
+            event: 'INSERT',
+            schema: 'public',
+            table: 'restaurants',
+            filter: 'status=eq.pending'
+          },
+          (payload) => {
+            console.log('New pending restaurant:', payload);
+            loadPendingCounts();
+          }
+        )
+        // Listen for ANY update/delete of restaurants
+        .on(
+          'postgres_changes',
+          { 
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'restaurants'
+          },
+          (payload) => {
+            console.log('Restaurant updated:', payload);
+            loadPendingCounts();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'DELETE',
+            schema: 'public',
+            table: 'restaurants'
+          },
+          (payload) => {
+            console.log('Restaurant deleted:', payload);
+            loadPendingCounts();
+          }
+        )
+        // Same pattern for cities
+        .on(
+          'postgres_changes',
+          { 
+            event: 'INSERT',
+            schema: 'public',
+            table: 'cities',
+            filter: 'status=eq.pending'
+          },
+          (payload) => {
+            console.log('New pending city:', payload);
+            loadPendingCounts();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'cities'
+          },
+          (payload) => {
+            console.log('City updated:', payload);
+            loadPendingCounts();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'DELETE',
+            schema: 'public',
+            table: 'cities'
+          },
+          (payload) => {
+            console.log('City deleted:', payload);
+            loadPendingCounts();
+          }
+        )
+        // And types
+        .on(
+          'postgres_changes',
+          { 
+            event: 'INSERT',
+            schema: 'public',
+            table: 'restaurant_types',
+            filter: 'status=eq.pending'
+          },
+          (payload) => {
+            console.log('New pending type:', payload);
+            loadPendingCounts();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'restaurant_types'
+          },
+          (payload) => {
+            console.log('Type updated:', payload);
+            loadPendingCounts();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'DELETE',
+            schema: 'public',
+            table: 'restaurant_types'
+          },
+          (payload) => {
+            console.log('Type deleted:', payload);
+            loadPendingCounts();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+        });
+    }
+  
+    return () => {
+      mounted = false;
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  }, [user?.profile?.is_admin]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -45,10 +198,17 @@ const Header = ({ user, setUser }) => {
             Activity
           </Button>
           {user?.profile?.is_admin && (
-            <Button onClick={() => navigate('/admin')} size="sm" variant="outline">
-              <Shield className="mr-2 h-4 w-4" />
-              Admin
-            </Button>
+            <div className="relative">
+              <Button onClick={() => navigate('/admin')} size="sm" variant="outline">
+                <Shield className="mr-2 h-4 w-4" />
+                Admin
+              </Button>
+              {pendingCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </div>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -162,7 +322,7 @@ const Header = ({ user, setUser }) => {
                       <li>
                         <Button 
                           variant="ghost" 
-                          className="w-full justify-start" 
+                          className="w-full justify-start relative" 
                           onClick={() => {
                             navigate('/admin');
                             setIsSheetOpen(false);
@@ -170,6 +330,11 @@ const Header = ({ user, setUser }) => {
                         >
                           <Shield className="mr-2 h-4 w-4" />
                           Admin
+                          {pendingCount > 0 && (
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                              {pendingCount}
+                            </span>
+                          )}
                         </Button>
                       </li>
                     )}

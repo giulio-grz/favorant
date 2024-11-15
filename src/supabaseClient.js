@@ -1486,5 +1486,74 @@ export const updateUserPassword = async (newPassword) => {
   });
 };
 
+export const getPendingCounts = async () => {
+  return executeWithRetry(async () => {
+    try {
+      const [restaurantsCount, citiesCount, typesCount] = await Promise.all([
+        supabase
+          .from('restaurants')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        supabase
+          .from('cities')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        
+        supabase
+          .from('restaurant_types')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+      ]);
+
+      return {
+        restaurants: restaurantsCount.count || 0,
+        cities: citiesCount.count || 0,
+        types: typesCount.count || 0,
+        total: (restaurantsCount.count || 0) + (citiesCount.count || 0) + (typesCount.count || 0)
+      };
+    } catch (error) {
+      console.error('Error getting pending counts:', error);
+      return { restaurants: 0, cities: 0, types: 0, total: 0 };
+    }
+  });
+};
+
+export const subscribeToPendingChanges = (callback) => {
+  const channel = supabase
+    .channel('schema-db-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',  // This captures INSERT, UPDATE, and DELETE
+        schema: 'public',
+        table: 'restaurants'
+      },
+      () => callback()  // Call callback for ANY change
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'cities'
+      },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'restaurant_types'
+      },
+      () => callback()
+    )
+    .subscribe();
+
+  return () => {
+    channel.unsubscribe();
+  };
+};
 
 export default supabase;

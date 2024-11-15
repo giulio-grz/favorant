@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, getAllEntities, approveRestaurant, updateRestaurant, deleteRestaurant, approveCity, approveType, updateCity, deleteCity, updateType, deleteType, createCity, createRestaurantType } from '@/supabaseClient';
+import { 
+  supabase, 
+  getAllEntities, 
+  approveRestaurant, 
+  updateRestaurant, 
+  deleteRestaurant, 
+  approveCity, 
+  approveType, 
+  updateCity, 
+  deleteCity, 
+  updateType, 
+  deleteType, 
+  createCity, 
+  createRestaurantType,
+  executeWithRetry,
+} from '@/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -8,18 +23,17 @@ import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  Edit, 
-  Plus, 
-  MoreHorizontal, 
-  Check, 
-  Trash, 
-  MapPin, 
-  ArrowLeft 
+import {
+  Edit,
+  Plus,
+  MoreHorizontal,
+  Check,
+  Trash,
+  MapPin,
+  ArrowLeft
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { executeWithRetry } from '@/supabaseClient';
 import { Label } from "@/components/ui/label";
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -202,7 +216,6 @@ const AdminDashboard = () => {
     try {
       setLoadingState('action', true);
       if (type === 'restaurant') {
-        // Get restaurant details first
         const { data: restaurant } = await supabase
           .from('restaurants')
           .select(`
@@ -236,10 +249,7 @@ const AdminDashboard = () => {
               }
             );
             
-            if (!res.ok) {
-              throw new Error('Geocoding failed');
-            }
-            
+            if (!res.ok) throw new Error('Geocoding failed');
             return res.json();
           });
   
@@ -268,8 +278,10 @@ const AdminDashboard = () => {
       } else if (type === 'type') {
         await approveType(id);
       }
-      
+  
+      // Just update the entities list
       await fetchAllEntities();
+      
       setAlert({ show: true, message: `${type} approved successfully.`, type: "success" });
     } catch (error) {
       console.error(`Error approving ${type}:`, error);
@@ -277,7 +289,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingState('action', false);
     }
-  };
+  };  
 
   const handleEdit = (entity, type) => {
     if (type === 'restaurant') {
@@ -363,7 +375,10 @@ const AdminDashboard = () => {
         await deleteType(deletingType.id);
         setDeletingType(null);
       }
+  
+      // Just update the entities list
       await fetchAllEntities();
+      
       setAlert({ show: true, message: `${type} deleted successfully.`, type: "success" });
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
@@ -371,7 +386,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingState('action', false);
     }
-  };
+  };  
 
   const handleAddNewType = async () => {
     try {
@@ -462,7 +477,9 @@ const AdminDashboard = () => {
   
       <Tabs defaultValue="restaurants">
         <TabsList>
-          <TabsTrigger value="restaurants">Restaurants</TabsTrigger>
+          <TabsTrigger value="restaurants">
+            Restaurants
+          </TabsTrigger>
           <TabsTrigger value="cities">Cities</TabsTrigger>
           <TabsTrigger value="types">Types</TabsTrigger>
         </TabsList>
