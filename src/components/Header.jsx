@@ -23,7 +23,6 @@ const Header = ({ user, setUser }) => {
           const counts = await getPendingCounts();
           if (mounted) {
             setPendingCount(counts.total);
-            console.log('Pending counts updated:', counts);
           }
         } catch (error) {
           console.error('Error loading pending counts:', error);
@@ -46,7 +45,6 @@ const Header = ({ user, setUser }) => {
             filter: 'status=eq.pending'
           },
           (payload) => {
-            console.log('New pending restaurant:', payload);
             loadPendingCounts();
           }
         )
@@ -59,7 +57,6 @@ const Header = ({ user, setUser }) => {
             table: 'restaurants'
           },
           (payload) => {
-            console.log('Restaurant updated:', payload);
             loadPendingCounts();
           }
         )
@@ -71,7 +68,6 @@ const Header = ({ user, setUser }) => {
             table: 'restaurants'
           },
           (payload) => {
-            console.log('Restaurant deleted:', payload);
             loadPendingCounts();
           }
         )
@@ -85,7 +81,6 @@ const Header = ({ user, setUser }) => {
             filter: 'status=eq.pending'
           },
           (payload) => {
-            console.log('New pending city:', payload);
             loadPendingCounts();
           }
         )
@@ -97,7 +92,6 @@ const Header = ({ user, setUser }) => {
             table: 'cities'
           },
           (payload) => {
-            console.log('City updated:', payload);
             loadPendingCounts();
           }
         )
@@ -109,7 +103,6 @@ const Header = ({ user, setUser }) => {
             table: 'cities'
           },
           (payload) => {
-            console.log('City deleted:', payload);
             loadPendingCounts();
           }
         )
@@ -123,7 +116,6 @@ const Header = ({ user, setUser }) => {
             filter: 'status=eq.pending'
           },
           (payload) => {
-            console.log('New pending type:', payload);
             loadPendingCounts();
           }
         )
@@ -135,7 +127,6 @@ const Header = ({ user, setUser }) => {
             table: 'restaurant_types'
           },
           (payload) => {
-            console.log('Type updated:', payload);
             loadPendingCounts();
           }
         )
@@ -147,12 +138,10 @@ const Header = ({ user, setUser }) => {
             table: 'restaurant_types'
           },
           (payload) => {
-            console.log('Type deleted:', payload);
             loadPendingCounts();
           }
         )
         .subscribe((status) => {
-          console.log('Subscription status:', status);
         });
     }
   
