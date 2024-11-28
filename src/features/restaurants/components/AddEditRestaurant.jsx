@@ -17,6 +17,7 @@ import {
   createRestaurant, 
   createCity, 
   createRestaurantType,
+  createCountry,
   addNote, 
   addReview,
   addBookmark
@@ -59,6 +60,16 @@ const AddEditRestaurant = ({ user }) => {
   const [types, setTypes] = useState([]);
   const [localCitiesLoading, setLocalCitiesLoading] = useState(true);
   const [localTypesLoading, setLocalTypesLoading] = useState(true);
+  const [isAddingNewCity, setIsAddingNewCity] = useState(false);
+
+  // Countries
+  const [countries, setCountries] = useState([]);
+  const [localCountriesLoading, setLocalCountriesLoading] = useState(true);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [filteredCities, setFilteredCities] = useState([]);
+  const [isAddingNewCountry, setIsAddingNewCountry] = useState(false);
+  const [newCountryName, setNewCountryName] = useState('');
+  const [newCountryCode, setNewCountryCode] = useState('');
 
   // Dialog state
   const [dialogState, setDialogState] = useState({
@@ -82,48 +93,67 @@ const AddEditRestaurant = ({ user }) => {
   const [error, setError] = useState(null);
   const [isToTry, setIsToTry] = useState(() => FormStorage.loadField('isToTry', false));
   const [alert, setAlert] = useState({ show: false, message: '', type: 'success' });
-  const [cityDialogOpen, setCityDialogOpen] = useState(false);
-  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
+  const [isAddingNewType, setIsAddingNewType] = useState(false);
   const [newCityName, setNewCityName] = useState('');
   const [newTypeName, setNewTypeName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-
-  // Load cities and types initially
+  // Load cities, countries and types initially
   useEffect(() => {
-    const loadCities = async () => {
+    const loadData = async () => {
       try {
         setLocalCitiesLoading(true);
-        const { data } = await supabase
-          .from('cities')
-          .select('*')
-          .order('name');
-        if (data) setCities(data);
+        setLocalTypesLoading(true);
+        setLocalCountriesLoading(true);
+  
+        const [citiesResponse, typesResponse, countriesResponse] = await Promise.all([
+          supabase
+            .from('cities')
+            .select(`
+              *,
+              countries (
+                id,
+                name,
+                code
+              )
+            `)
+            .order('name'),
+          
+          supabase
+            .from('restaurant_types')
+            .select('*')
+            .order('name'),
+  
+          supabase
+            .from('countries')
+            .select('*')
+            .order('name')
+        ]);
+  
+        if (citiesResponse.data) setCities(citiesResponse.data);
+        if (typesResponse.data) setTypes(typesResponse.data);
+        if (countriesResponse.data) setCountries(countriesResponse.data);
+  
       } catch (error) {
-        console.error('Error loading cities:', error);
+        console.error('Error loading data:', error);
       } finally {
         setLocalCitiesLoading(false);
-      }
-    };
-
-    const loadTypes = async () => {
-      try {
-        setLocalTypesLoading(true);
-        const { data } = await supabase
-          .from('restaurant_types')
-          .select('*')
-          .order('name');
-        if (data) setTypes(data);
-      } catch (error) {
-        console.error('Error loading types:', error);
-      } finally {
         setLocalTypesLoading(false);
+        setLocalCountriesLoading(false);
       }
     };
-
-    loadCities();
-    loadTypes();
+  
+    loadData();
   }, []);
+
+  // New useEffect for countries
+  useEffect(() => {
+    if (selectedCountry) {
+      setFilteredCities(cities.filter(city => city.countries?.id === selectedCountry.id));
+    } else {
+      setFilteredCities(cities);
+    }
+  }, [selectedCountry, cities]);
 
   // Storage effects
   useEffect(() => FormStorage.saveField('step', step), [step]);
@@ -289,7 +319,7 @@ const AddEditRestaurant = ({ user }) => {
   };
 
   // Loading state
-  if (localCitiesLoading || localTypesLoading) {
+  if (localCitiesLoading || localTypesLoading || localCountriesLoading) {
     return (
       <div className="fixed inset-0 bg-background flex items-center justify-center">
         Loading...
@@ -422,71 +452,304 @@ const AddEditRestaurant = ({ user }) => {
                   />
                 </div>
 
+                <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>City</Label>
-                  <Select
-                    value={restaurant.city_id ? restaurant.city_id.toString() : ""}
-                    onValueChange={(value) => {
-                      if (value === 'new') {
-                        setNewCityName('');
-                        setCityDialogOpen(true);
-                      } else {
-                        setRestaurant(prev => ({
-                          ...prev,
-                          city_id: parseInt(value)
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select city" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cities.map(city => (
-                        <SelectItem key={city.id} value={city.id.toString()}>
-                          {city.name}
+                  <Label>Country</Label>
+                  {isAddingNewCountry ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Input
+                          value={newCountryName}
+                          onChange={(e) => setNewCountryName(e.target.value)}
+                          placeholder="Enter country name"
+                          className="h-12"
+                        />
+                        <Input
+                          value={newCountryCode}
+                          onChange={(e) => setNewCountryCode(e.target.value.toUpperCase())}
+                          placeholder="Enter country code (e.g., FR)"
+                          maxLength={2}
+                          className="h-12 uppercase"
+                        />
+                      </div>
+                      <div className="flex gap-2 sm:gap-4">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setIsAddingNewCountry(false);
+                            setNewCountryName('');
+                            setNewCountryCode('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          onClick={async () => {
+                            try {
+                              const newCountry = await createCountry({ 
+                                name: newCountryName.trim(), 
+                                code: newCountryCode.trim(),
+                                created_by: user.id,
+                                status: 'pending'
+                              });
+                              
+                              setCountries(prev => [...prev, newCountry]);
+                              setSelectedCountry(newCountry);
+                              setIsAddingNewCountry(false);
+                              setNewCountryName('');
+                              setNewCountryCode('');
+                              
+                              setAlert({
+                                show: true,
+                                message: `New country "${newCountry.name}" added and selected`,
+                                type: 'success'
+                              });
+                            } catch (error) {
+                              setAlert({
+                                show: true,
+                                message: `Failed to add country: ${error.message}`,
+                                type: 'error'
+                              });
+                            }
+                          }}
+                          disabled={!newCountryName.trim() || !newCountryCode.trim() || newCountryCode.length !== 2}
+                        >
+                          Add Country
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedCountry?.id?.toString() || ""}
+                      onValueChange={(value) => {
+                        if (value === "new") {
+                          setIsAddingNewCountry(true);
+                        } else {
+                          const country = countries.find(c => c.id === parseInt(value));
+                          setSelectedCountry(country);
+                          setRestaurant(prev => ({
+                            ...prev,
+                            city_id: null
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map(country => (
+                          <SelectItem key={country.id} value={country.id.toString()}>
+                            {country.name} ({country.code})
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-primary">
+                          <Plus className="inline-block w-4 h-4 mr-2" />
+                          Add new country
                         </SelectItem>
-                      ))}
-                      <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 h-4 mr-2" />
-                        Add new city
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    {isAddingNewCity ? (
+                      <div className="space-y-4">
+                        <Input
+                          value={newCityName}
+                          onChange={(e) => setNewCityName(e.target.value)}
+                          placeholder="Enter city name"
+                          className="h-12"
+                        />
+                        <div className="flex gap-2 sm:gap-4">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setIsAddingNewCity(false);
+                              setNewCityName('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            onClick={async () => {
+                              try {
+                                const newCity = await createCity({ 
+                                  name: newCityName.trim(), 
+                                  created_by: user.id,
+                                  country_id: selectedCountry.id,
+                                  status: 'pending'
+                                });
+                                
+                                const cityWithCountry = {
+                                  ...newCity,
+                                  countries: selectedCountry
+                                };
+                                
+                                setCities(prev => [...prev, cityWithCountry]);
+                                setFilteredCities(prev => [...prev, cityWithCountry]);
+                                setRestaurant(prev => ({
+                                  ...prev,
+                                  city_id: newCity.id
+                                }));
+                                setIsAddingNewCity(false);
+                                setNewCityName('');
+                                
+                                setAlert({
+                                  show: true,
+                                  message: `New city "${newCity.name}" added and selected`,
+                                  type: 'success'
+                                });
+                              } catch (error) {
+                                setAlert({
+                                  show: true,
+                                  message: `Failed to add city: ${error.message}`,
+                                  type: 'error'
+                                });
+                              }
+                            }}
+                            disabled={!newCityName.trim()}
+                          >
+                            Add City
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Select
+                        value={restaurant.city_id?.toString() || ""}
+                        onValueChange={(value) => {
+                          if (value === "new") {
+                            if (!selectedCountry) {
+                              setAlert({
+                                show: true,
+                                message: 'Please select a country first',
+                                type: 'error'
+                              });
+                              return;
+                            }
+                            setIsAddingNewCity(true);
+                          } else {
+                            setRestaurant(prev => ({
+                              ...prev,
+                              city_id: parseInt(value)
+                            }));
+                          }
+                        }}
+                        disabled={!selectedCountry}
+                      >
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder={selectedCountry ? "Select city" : "Select a country first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredCities.map(city => (
+                            <SelectItem key={city.id} value={city.id.toString()}>
+                              {city.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="new" className="text-primary">
+                            <Plus className="inline-block w-4 h-4 mr-2" />
+                            Add new city in {selectedCountry?.name || ''}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 </div>
 
                 {/* Type Select */}
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <Select
-                    value={restaurant.type_id ? restaurant.type_id.toString() : ""}
-                    onValueChange={(value) => {
-                      if (value === 'new') {
-                        setNewTypeName('');
-                        setTypeDialogOpen(true);
-                      } else {
-                        setRestaurant(prev => ({
-                          ...prev,
-                          type_id: parseInt(value)
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {types.map(type => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
+                  {isAddingNewType ? (
+                    <div className="space-y-4">
+                      <Input
+                        value={newTypeName}
+                        onChange={(e) => setNewTypeName(e.target.value)}
+                        placeholder="Enter type name"
+                        className="h-12"
+                      />
+                      <div className="flex gap-2 sm:gap-4">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setIsAddingNewType(false);
+                            setNewTypeName('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          onClick={async () => {
+                            try {
+                              const newType = await createRestaurantType({ 
+                                name: newTypeName.trim(), 
+                                created_by: user.id,
+                                status: 'pending'
+                              });
+                              
+                              setTypes(prev => [...prev, newType]);
+                              setRestaurant(prev => ({
+                                ...prev,
+                                type_id: newType.id
+                              }));
+                              setIsAddingNewType(false);
+                              setNewTypeName('');
+                              
+                              setAlert({
+                                show: true,
+                                message: `New type "${newType.name}" added and selected`,
+                                type: 'success'
+                              });
+                            } catch (error) {
+                              setAlert({
+                                show: true,
+                                message: `Failed to add type: ${error.message}`,
+                                type: 'error'
+                              });
+                            }
+                          }}
+                          disabled={!newTypeName.trim()}
+                        >
+                          Add Type
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Select
+                      value={restaurant.type_id ? restaurant.type_id.toString() : ""}
+                      onValueChange={(value) => {
+                        if (value === "new") {
+                          setIsAddingNewType(true);
+                        } else {
+                          setRestaurant(prev => ({
+                            ...prev,
+                            type_id: parseInt(value)
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {types.map(type => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="text-primary">
+                          <Plus className="inline-block w-4 h-4 mr-2" />
+                          Add new type
                         </SelectItem>
-                      ))}
-                      <SelectItem value="new" className="text-primary">
-                        <Plus className="inline-block w-4 h-4 mr-2" />
-                        Add new type
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -646,127 +909,6 @@ const AddEditRestaurant = ({ user }) => {
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
-      <Dialog 
-        open={dialogState.isOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setDialogState(prev => ({ ...prev, isOpen: false }));
-            setNewCityName('');
-            setNewTypeName('');
-          }
-        }}
-      >
-        <DialogContent className="bg-background p-0 max-h-[90vh] w-full max-w-lg">
-          <DialogHeader className="px-6 py-4 border-b">
-            <DialogTitle>
-              Add New {dialogState.type === 'city' ? 'City' : 'Type'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="px-6 py-4 h-full overflow-y-auto">
-            <div className="space-y-4">
-              <Label>{dialogState.type === 'city' ? 'City' : 'Type'} Name</Label>
-              <Input
-                value={dialogState.type === 'city' ? newCityName : newTypeName}
-                onChange={(e) => {
-                  if (dialogState.type === 'city') {
-                    setNewCityName(e.target.value);
-                  } else {
-                    setNewTypeName(e.target.value);
-                  }
-                }}
-                placeholder={`Enter ${dialogState.type === 'city' ? 'city' : 'type'} name`}
-                className="mt-2"
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter className="px-6 py-4 border-t">
-            <div className="flex justify-end gap-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDialogState({ isOpen: false, type: null, loading: false });
-                  setNewCityName('');
-                  setNewTypeName('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={async () => {
-                  const name = dialogState.type === 'city' ? newCityName : newTypeName;
-                  if (!name.trim()) return;
-
-                  setDialogState(prev => ({ ...prev, loading: true }));
-                  
-                  try {
-                    if (dialogState.type === 'city') {
-                      const newCity = await createCity({ 
-                        name: name.trim(), 
-                        created_by: user.id,
-                        status: 'pending'
-                      });
-
-                      setCities(prev => [...prev, newCity]);
-                      setRestaurant(prev => ({
-                        ...prev,
-                        city_id: newCity.id
-                      }));
-                      
-                      setDialogState({ isOpen: false, type: null, loading: false });
-                      setNewCityName('');
-                      
-                      requestAnimationFrame(() => {
-                        setAlert({
-                          show: true,
-                          message: `New city "${newCity.name}" added`,
-                          type: 'success'
-                        });
-                      });
-                    } else {
-                      const newType = await createRestaurantType({ 
-                        name: name.trim(), 
-                        created_by: user.id,
-                        status: 'pending'
-                      });
-
-                      setTypes(prev => [...prev, newType]);
-                      setRestaurant(prev => ({
-                        ...prev,
-                        type_id: newType.id
-                      }));
-                      
-                      setDialogState({ isOpen: false, type: null, loading: false });
-                      setNewTypeName('');
-                      
-                      requestAnimationFrame(() => {
-                        setAlert({
-                          show: true,
-                          message: `New type "${newType.name}" added and selected`,
-                          type: 'success'
-                        });
-                      });
-                    }
-                  } catch (error) {
-                    console.error('Error adding:', error);
-                    setAlert({
-                      show: true,
-                      message: `Failed to add ${dialogState.type}: ${error.message}`,
-                      type: 'error'
-                    });
-                    setDialogState(prev => ({ ...prev, loading: false }));
-                  }
-                }}
-                disabled={dialogState.loading || !(dialogState.type === 'city' ? newCityName.trim() : newTypeName.trim())}
-              >
-                {dialogState.loading ? 'Adding...' : 'Add'}
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Alert Dialog */}
       <AlertDialog 
         open={alert.show} 
@@ -792,98 +934,6 @@ const AddEditRestaurant = ({ user }) => {
           {error}
         </div>
       )}
-
-      {/* City Dialog */}
-      <Dialog open={cityDialogOpen} onOpenChange={setCityDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New City</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={newCityName}
-              onChange={(e) => setNewCityName(e.target.value)}
-              placeholder="Enter city name"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCityDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                if (!newCityName.trim()) return;
-                try {
-                  const newCity = await createCity({ 
-                    name: newCityName.trim(), 
-                    created_by: user.id,
-                    status: 'pending'
-                  });
-                  setCities(prev => [...prev, newCity]);
-                  setRestaurant(prev => ({
-                    ...prev,
-                    city_id: newCity.id
-                  }));
-                  setCityDialogOpen(false);
-                  setNewCityName('');
-                  setSuccessMessage(`New city "${newCity.name}" added and selected`);
-                } catch (error) {
-                  console.error('Error adding city:', error);
-                  setError(error.message);
-                }
-              }}
-            >
-              Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Type Dialog */}
-      <Dialog open={typeDialogOpen} onOpenChange={setTypeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Type</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={newTypeName}
-              onChange={(e) => setNewTypeName(e.target.value)}
-              placeholder="Enter type name"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTypeDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                if (!newTypeName.trim()) return;
-                try {
-                  const newType = await createRestaurantType({ 
-                    name: newTypeName.trim(), 
-                    created_by: user.id,
-                    status: 'pending'
-                  });
-                  setTypes(prev => [...prev, newType]);
-                  setRestaurant(prev => ({
-                    ...prev,
-                    type_id: newType.id
-                  }));
-                  setTypeDialogOpen(false);
-                  setNewTypeName('');
-                  setSuccessMessage(`New type "${newType.name}" added and selected`);
-                } catch (error) {
-                  console.error('Error adding type:', error);
-                  setError(error.message);
-                }
-              }}
-            >
-              Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Success Message */}
       {successMessage && (

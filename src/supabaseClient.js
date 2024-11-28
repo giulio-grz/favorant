@@ -278,6 +278,62 @@ export const addRestaurant = async (restaurantData, userId) => {
 export const createRestaurant = async (restaurantData, userId, isToTry = false) => {
   return executeWithRetry(async () => {
     try {
+      // First get the city and country info
+      const { data: cityData } = await supabase
+        .from('cities')
+        .select(`
+          *,
+          countries (
+            id,
+            name,
+            code
+          )
+        `)
+        .eq('id', restaurantData.city_id)
+        .single();
+
+      if (!cityData) {
+        throw new Error('City not found');
+      }
+
+      // Build search query with country information
+      const searchQuery = [
+        restaurantData.address,
+        restaurantData.postal_code,
+        cityData.name,
+        cityData.countries?.name || 'Italy'
+      ].filter(Boolean).join(', ');
+
+      // Add country code to geocoding if available
+      const countryParam = cityData.countries?.code ? 
+        `&countrycodes=${cityData.countries.code.toLowerCase()}` : 
+        '';
+
+      // Geocode the address
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}${countryParam}&limit=1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'RestaurantApp/1.0'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Geocoding failed');
+      }
+
+      const locationData = await response.json();
+      let latitude = null;
+      let longitude = null;
+
+      if (locationData && locationData.length > 0) {
+        latitude = parseFloat(locationData[0].lat);
+        longitude = parseFloat(locationData[0].lon);
+      }
+
+      // Insert the restaurant
       const { data: restaurant, error: restaurantError } = await supabase
         .from('restaurants')
         .insert([{
@@ -288,6 +344,8 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
           type_id: restaurantData.type_id,
           price: restaurantData.price,
           website: restaurantData.website,
+          latitude: latitude,
+          longitude: longitude,
           created_by: userId,
           status: 'pending'
         }])
@@ -295,7 +353,12 @@ export const createRestaurant = async (restaurantData, userId, isToTry = false) 
           *,
           cities (
             id,
-            name
+            name,
+            countries (
+              id,
+              name,
+              code
+            )
           ),
           restaurant_types (
             id,
@@ -509,8 +572,9 @@ export const createCity = async (cityData) => {
         .from('cities')
         .insert([{
           name: cityData.name.trim(),
+          country_id: cityData.country_id,
           created_by: cityData.created_by,
-          status: 'pending'
+          status: cityData.status || 'pending'
         }])
         .select()
         .single();
@@ -550,23 +614,43 @@ export const createRestaurantType = async (typeData) => {
 export const getAllEntities = async () => {
   return executeWithRetry(async () => {
     try {
-      const [restaurantsResult, citiesResult, typesResult] = await Promise.all([
+      const [restaurantsResult, citiesResult, typesResult, countriesResult] = await Promise.all([
         supabase
           .from('restaurants')
           .select(`
             *,
-            cities ( id, name ),
+            cities ( 
+              id, 
+              name,
+              countries (
+                id,
+                name,
+                code
+              )
+            ),
             restaurant_types ( id, name )
           `)
           .order('created_at', { ascending: false }),
 
         supabase
           .from('cities')
-          .select('*')
+          .select(`
+            *,
+            countries (
+              id,
+              name,
+              code
+            )
+          `)
           .order('name'),
 
         supabase
           .from('restaurant_types')
+          .select('*')
+          .order('name'),
+
+        supabase
+          .from('countries')
           .select('*')
           .order('name')
       ]);
@@ -574,11 +658,13 @@ export const getAllEntities = async () => {
       if (restaurantsResult.error) throw restaurantsResult.error;
       if (citiesResult.error) throw citiesResult.error;
       if (typesResult.error) throw typesResult.error;
+      if (countriesResult.error) throw countriesResult.error;
 
       return {
         restaurants: restaurantsResult.data || [],
         cities: citiesResult.data || [],
-        types: typesResult.data || []
+        types: typesResult.data || [],
+        countries: countriesResult.data || []
       };
     } catch (error) {
       console.error("Error fetching entities:", error);
@@ -1170,12 +1256,24 @@ export const updateCity = async (id, updates) => {
     try {
       const { data, error } = await supabase
         .from('cities')
-        .update(updates)
+        .update({
+          name: updates.name.trim(),
+          country_id: updates.country_id,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id)
-        .select();
+        .select(`
+          *,
+          countries (
+            id,
+            name,
+            code
+          )
+        `)
+        .single();
 
       if (error) throw error;
-      return data[0];
+      return data;
     } catch (error) {
       console.error("Error updating city:", error);
       throw error;
@@ -1554,6 +1652,86 @@ export const subscribeToPendingChanges = (callback) => {
   return () => {
     channel.unsubscribe();
   };
+};
+
+export const createCountry = async (countryData) => {
+  return executeWithRetry(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('countries')
+        .insert([{
+          name: countryData.name.trim(),
+          code: countryData.code.trim().toUpperCase(),
+          created_by: countryData.created_by,
+          status: countryData.status || 'pending'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating country:', error);
+      throw error;
+    }
+  });
+};
+
+export const updateCountry = async (id, updates) => {
+  return executeWithRetry(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('countries')
+        .update({
+          name: updates.name.trim(),
+          code: updates.code.trim().toUpperCase(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+      return data[0];
+    } catch (error) {
+      console.error('Error updating country:', error);
+      throw error;
+    }
+  });
+};
+
+export const deleteCountry = async (id) => {
+  return executeWithRetry(async () => {
+    try {
+      const { error } = await supabase
+        .from('countries')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting country:', error);
+      throw error;
+    }
+  });
+};
+
+export const getCountries = async () => {
+  return executeWithRetry(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('countries')
+        .select('*')
+        .eq('status', 'approved')
+        .order('name');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching countries:', error);
+      throw error;
+    }
+  });
 };
 
 export default supabase;

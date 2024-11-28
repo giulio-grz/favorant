@@ -32,7 +32,14 @@ export const useTypesAndCities = () => {
       return await executeWithRetry(async () => {
         const { data, error } = await supabase
           .from('cities')
-          .select('*')
+          .select(`
+            *,
+            countries (
+              id,
+              name,
+              code
+            )
+          `)
           .eq('status', 'approved')
           .order('name');
         

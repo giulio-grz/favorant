@@ -44,7 +44,14 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) =>
         .from('restaurants')
         .select(`
           *,
-          cities (*),
+          cities (
+            *,
+            countries (
+              id,
+              name,
+              code
+            )
+          ),
           restaurant_types (*),
           restaurant_reviews!restaurant_reviews_restaurant_id_fkey (
             rating,
@@ -55,7 +62,7 @@ const useRestaurants = (userId, isViewingOwnRestaurants, filters, sortOption) =>
             user_id
           )
         `)
-        .or(`status.eq.approved,created_by.eq.${userId}`)
+        .or(`status.eq.approved,created_by.eq.${userId}`);
   
       if (restaurantsError) throw restaurantsError;
   
@@ -244,7 +251,15 @@ const RestaurantDashboard = ({ user, filters, setFilters, sortOption, setSortOpt
       restaurant.restaurant_types?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       restaurant.cities?.name?.toLowerCase().includes(searchQuery.toLowerCase());
   
-    return matchesTab && matchesSearch;
+    // Add country filter check
+    const matchesCountry = !filters.country_id || 
+      restaurant.cities?.countries?.id === filters.country_id;
+    
+    const matchesCity = !filters.city_id || restaurant.city_id === filters.city_id;
+    const matchesType = !filters.type_id || restaurant.type_id === filters.type_id;
+    const matchesPrice = !filters.price || restaurant.price === filters.price;
+  
+    return matchesTab && matchesSearch && matchesCountry && matchesCity && matchesType && matchesPrice;
   });
 
   if (loading || loadingStates.view) {
