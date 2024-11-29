@@ -17,7 +17,6 @@ import {
   createRestaurant, 
   createCity, 
   createRestaurantType,
-  createCountry,
   addNote, 
   addReview,
   addBookmark
@@ -67,9 +66,6 @@ const AddEditRestaurant = ({ user }) => {
   const [localCountriesLoading, setLocalCountriesLoading] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [filteredCities, setFilteredCities] = useState([]);
-  const [isAddingNewCountry, setIsAddingNewCountry] = useState(false);
-  const [newCountryName, setNewCountryName] = useState('');
-  const [newCountryCode, setNewCountryCode] = useState('');
 
   // Dialog state
   const [dialogState, setDialogState] = useState({
@@ -453,87 +449,17 @@ const AddEditRestaurant = ({ user }) => {
                 </div>
 
                 <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Country</Label>
-                  {isAddingNewCountry ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Input
-                          value={newCountryName}
-                          onChange={(e) => setNewCountryName(e.target.value)}
-                          placeholder="Enter country name"
-                          className="h-12"
-                        />
-                        <Input
-                          value={newCountryCode}
-                          onChange={(e) => setNewCountryCode(e.target.value.toUpperCase())}
-                          placeholder="Enter country code (e.g., FR)"
-                          maxLength={2}
-                          className="h-12 uppercase"
-                        />
-                      </div>
-                      <div className="flex gap-2 sm:gap-4">
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => {
-                            setIsAddingNewCountry(false);
-                            setNewCountryName('');
-                            setNewCountryCode('');
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          className="flex-1"
-                          onClick={async () => {
-                            try {
-                              const newCountry = await createCountry({ 
-                                name: newCountryName.trim(), 
-                                code: newCountryCode.trim(),
-                                created_by: user.id,
-                                status: 'pending'
-                              });
-                              
-                              setCountries(prev => [...prev, newCountry]);
-                              setSelectedCountry(newCountry);
-                              setIsAddingNewCountry(false);
-                              setNewCountryName('');
-                              setNewCountryCode('');
-                              
-                              setAlert({
-                                show: true,
-                                message: `New country "${newCountry.name}" added and selected`,
-                                type: 'success'
-                              });
-                            } catch (error) {
-                              setAlert({
-                                show: true,
-                                message: `Failed to add country: ${error.message}`,
-                                type: 'error'
-                              });
-                            }
-                          }}
-                          disabled={!newCountryName.trim() || !newCountryCode.trim() || newCountryCode.length !== 2}
-                        >
-                          Add Country
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
+                  <div className="space-y-2">
+                    <Label>Country</Label>
                     <Select
                       value={selectedCountry?.id?.toString() || ""}
                       onValueChange={(value) => {
-                        if (value === "new") {
-                          setIsAddingNewCountry(true);
-                        } else {
-                          const country = countries.find(c => c.id === parseInt(value));
-                          setSelectedCountry(country);
-                          setRestaurant(prev => ({
-                            ...prev,
-                            city_id: null
-                          }));
-                        }
+                        const country = countries.find(c => c.id === parseInt(value));
+                        setSelectedCountry(country);
+                        setRestaurant(prev => ({
+                          ...prev,
+                          city_id: null
+                        }));
                       }}
                     >
                       <SelectTrigger className="h-12">
@@ -545,14 +471,9 @@ const AddEditRestaurant = ({ user }) => {
                             {country.name} ({country.code})
                           </SelectItem>
                         ))}
-                        <SelectItem value="new" className="text-primary">
-                          <Plus className="inline-block w-4 h-4 mr-2" />
-                          Add new country
-                        </SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
-                </div>
+                  </div>
 
                   <div className="space-y-2">
                     <Label>City</Label>

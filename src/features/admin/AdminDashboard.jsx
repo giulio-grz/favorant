@@ -506,10 +506,19 @@ const AdminDashboard = () => {
   };
 
   const filteredEntities = (entities) => {
-    return entities.filter(entity => 
-      (filters.status === 'all' || filters.status === '' || entity.status === filters.status) &&
-      (filters.search === '' || entity.name.toLowerCase().includes(filters.search.toLowerCase()))
-    );
+    if (Array.isArray(entities)) {
+      return entities.filter(entity => 
+        (filters.status === 'all' || filters.status === '' || entity.status === filters.status) &&
+        (filters.search === '' || entity.name.toLowerCase().includes(filters.search.toLowerCase()))
+      );
+    } else if (entities === cities) {
+      // Special handling for cities since they're displayed in groups
+      return cities.filter(city => 
+        (filters.status === 'all' || filters.status === '' || city.status === filters.status) &&
+        (filters.search === '' || city.name.toLowerCase().includes(filters.search.toLowerCase()))
+      );
+    }
+    return [];
   };
 
   // Show loading spinner only during initial load
@@ -663,13 +672,13 @@ const AdminDashboard = () => {
 
         <TabsContent value="cities">
           {/* Show cities without country first */}
-          {cities.filter(city => !city.country_id).length > 0 && (
+          {filteredEntities(cities).filter(city => !city.country_id).length > 0 && (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
                   No Country Assigned
                   <Badge variant="secondary" className="ml-2">
-                    {cities.filter(city => !city.country_id).length} cities
+                    {filteredEntities(cities).filter(city => !city.country_id).length} cities
                   </Badge>
                 </h3>
               </div>
@@ -682,7 +691,9 @@ const AdminDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {cities.filter(city => !city.country_id).map((city) => (
+                  {filteredEntities(cities)
+                    .filter(city => !city.country_id)
+                    .map((city) => (
                     <TableRow key={city.id}>
                       <TableCell>{city.name}</TableCell>
                       <TableCell>
@@ -729,7 +740,7 @@ const AdminDashboard = () => {
 
           {/* Then show cities grouped by country */}
           {countries.map(country => {
-            const countryCities = cities.filter(city => city.country_id === country.id);
+            const countryCities = filteredEntities(cities).filter(city => city.country_id === country.id);
             if (countryCities.length === 0) return null;
 
             return (
@@ -854,24 +865,12 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="countries">
-          <Button 
-            onClick={() => {
-              setEditingCountry({
-                name: '',
-                code: '',
-                status: 'approved'
-              });
-            }}
-            className="mb-4"
-          >
-            Add Country
-          </Button>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Code</TableHead>
-                <TableHead>Cities</TableHead>  {/* New column */}
+                <TableHead>Cities</TableHead>  
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>

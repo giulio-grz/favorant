@@ -1654,29 +1654,6 @@ export const subscribeToPendingChanges = (callback) => {
   };
 };
 
-export const createCountry = async (countryData) => {
-  return executeWithRetry(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('countries')
-        .insert([{
-          name: countryData.name.trim(),
-          code: countryData.code.trim().toUpperCase(),
-          created_by: countryData.created_by,
-          status: countryData.status || 'pending'
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error creating country:', error);
-      throw error;
-    }
-  });
-};
-
 export const updateCountry = async (id, updates) => {
   return executeWithRetry(async () => {
     try {
