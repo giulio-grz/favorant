@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription } from './ui/alert-dialog';
 import { updateUserPassword } from '../supabaseClient';
-import logo from '../assets/favorant-logo.svg';
+import logo from '../assets/Kravemark-logo.svg';
 
 const ResetPasswordForm = () => {
   const navigate = useNavigate();
@@ -51,7 +51,7 @@ const ResetPasswordForm = () => {
         <div className="flex flex-col items-center">
           <img 
             src={logo} 
-            alt="Favorant Logo" 
+            alt="Kravemark Logo" 
             className="h-8 w-auto mb-8"
           />
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">

@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { supabase, signOut, getPendingCounts } from '../supabaseClient';
-import logo from '../assets/favorant-logo.svg';
+import logo from '../assets/Kravemark-logo-full.svg';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
@@ -166,7 +166,7 @@ const Header = ({ user, setUser }) => {
           <Link to="/" className="flex items-center">
             <img 
               src={logo} 
-              alt="Favorant Logo" 
+              alt="Kravemark Logo" 
               className="h-7 w-auto"
             />
           </Link>
