@@ -167,7 +167,7 @@ const Header = ({ user, setUser }) => {
             <img 
               src={logo} 
               alt="Kravemark Logo" 
-              className="h-7 w-auto"
+              className="h-6 w-auto"
             />
           </Link>
         </div>
